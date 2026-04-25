@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/admin_auth_service.dart';
+import '../../core/business_mode.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../models/check_item.dart';
 import '../../models/check_summary.dart';
@@ -26,7 +27,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool _adminBusy = false;
   String? _lastSelectedCheckId;
   bool _removingLine = false;
-  _BillingViewMode _billingViewMode = _BillingViewMode.event;
 
   Future<void> _confirmRemoveLine(CheckItem item) async {
     final person = _selectedPerson;
@@ -234,33 +234,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ],
               ),
               const SizedBox(height: 8),
-              SegmentedButton<_BillingViewMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: _BillingViewMode.event,
-                    label: Text('特別イベント'),
-                    icon: Icon(Icons.celebration_outlined),
-                  ),
-                  ButtonSegment(
-                    value: _BillingViewMode.normal,
-                    label: Text('通常営業'),
-                    icon: Icon(Icons.schedule),
-                  ),
-                ],
-                selected: {_billingViewMode},
-                onSelectionChanged: (selection) {
-                  setState(() => _billingViewMode = selection.first);
-                },
-              ),
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _billingViewMode == _BillingViewMode.normal
+              ValueListenableBuilder<BusinessMode>(
+                valueListenable: BusinessModeState.notifier,
+                builder: (context, businessMode, _) {
+                  final text = businessMode == BusinessMode.normal
                       ? '通常営業: 1時間¥1,200 / 以降30分ごと¥600（テキーラ・イエガー・マルガリータ・クライナー・コカボム・シャンパン系は別会計）'
-                      : '特別イベント: 既存の注文合計で会計',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                      : 'イベント営業: 既存の注文合計で会計';
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+                  );
+                },
               ),
               StreamBuilder<List<PersonOption>>(
                 stream: _checkRepository.streamOpenPeople(),
@@ -286,7 +270,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   child: _CheckDetail(
                     checkId: _selectedPerson!.openCheckId,
                     currency: _currency,
-                    billingViewMode: _billingViewMode,
                     onDeleteLine: _isAdmin && !_removingLine ? _confirmRemoveLine : null,
                   ),
                 )
@@ -314,13 +297,11 @@ class _CheckDetail extends StatelessWidget {
   const _CheckDetail({
     required this.checkId,
     required this.currency,
-    required this.billingViewMode,
     this.onDeleteLine,
   });
 
   final String checkId;
   final NumberFormat currency;
-  final _BillingViewMode billingViewMode;
   final Future<void> Function(CheckItem item)? onDeleteLine;
 
   @override
@@ -352,7 +333,6 @@ class _CheckDetail extends StatelessWidget {
                         summary: summary,
                         items: items,
                         currency: currency,
-                        billingViewMode: billingViewMode,
                       ),
                       const SizedBox(height: 8),
                       Expanded(
@@ -401,51 +381,51 @@ class _TotalCard extends StatelessWidget {
     required this.summary,
     required this.items,
     required this.currency,
-    required this.billingViewMode,
   });
 
   final CheckSummary summary;
   final List<CheckItem> items;
   final NumberFormat currency;
-  final _BillingViewMode billingViewMode;
 
   @override
   Widget build(BuildContext context) {
     final breakdown = _BillingBreakdown.from(summary: summary, items: items);
-    final total = billingViewMode == _BillingViewMode.normal
-        ? breakdown.normalTotal
-        : summary.totalTaxIncluded;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return ValueListenableBuilder<BusinessMode>(
+      valueListenable: BusinessModeState.notifier,
+      builder: (context, businessMode, _) {
+        final isNormal = businessMode == BusinessMode.normal;
+        final total = isNormal ? breakdown.normalTotal : summary.totalTaxIncluded;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(summary.customerNameSnapshot, style: Theme.of(context).textTheme.titleMedium),
-                Text('明細件数は下のリストで確認'),
-                Text('内税: ${currency.format(summary.taxAmount)}'),
-                if (billingViewMode == _BillingViewMode.normal) ...[
-                  Text('通常飲料: ${currency.format(breakdown.mainDrinksTotal)}'),
-                  Text('時間料金: ${currency.format(breakdown.timeCharge)}'),
-                  Text('別会計: ${currency.format(breakdown.separateDrinksTotal)}'),
-                ],
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(summary.customerNameSnapshot, style: Theme.of(context).textTheme.titleMedium),
+                    Text('明細件数は下のリストで確認'),
+                    Text('内税: ${currency.format(summary.taxAmount)}'),
+                    if (isNormal) ...[
+                      Text('通常飲料: ${currency.format(breakdown.mainDrinksTotal)}'),
+                      Text('時間料金: ${currency.format(breakdown.timeCharge)}'),
+                      Text('別会計: ${currency.format(breakdown.separateDrinksTotal)}'),
+                    ],
+                  ],
+                ),
+                Text(
+                  currency.format(total),
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
               ],
             ),
-            Text(
-              currency.format(total),
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
-
-enum _BillingViewMode { event, normal }
 
 class _BillingBreakdown {
   const _BillingBreakdown({

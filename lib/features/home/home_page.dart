@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/admin_auth_service.dart';
+import '../../core/business_mode.dart';
 import '../admin/menu_edit_page.dart';
 import '../checkout/checkout_page.dart';
 import '../order/order_page.dart';
@@ -64,7 +65,39 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('簡易会計アプリ')),
+      appBar: AppBar(
+        title: const Text('簡易会計アプリ'),
+        actions: [
+          ValueListenableBuilder<BusinessMode>(
+            valueListenable: BusinessModeState.notifier,
+            builder: (context, mode, _) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<BusinessMode>(
+                    value: mode,
+                    borderRadius: BorderRadius.circular(12),
+                    items: const [
+                      DropdownMenuItem(
+                        value: BusinessMode.event,
+                        child: Text('イベント営業'),
+                      ),
+                      DropdownMenuItem(
+                        value: BusinessMode.normal,
+                        child: Text('通常営業'),
+                      ),
+                    ],
+                    onChanged: (selected) {
+                      if (selected == null) return;
+                      BusinessModeState.notifier.value = selected;
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),

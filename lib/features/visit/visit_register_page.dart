@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/business_mode.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../data/repositories/customer_repository.dart';
 
@@ -35,7 +36,10 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
     setState(() => _saving = true);
     try {
       await _customerRepository.createCustomerIfNeeded(name);
-      await _checkRepository.createOpenCheck(customerName: name);
+      await _checkRepository.createOpenCheck(
+        customerName: name,
+        billingMode: BusinessModeState.notifier.value,
+      );
       if (mounted) {
         Navigator.pop(context, name);
       }

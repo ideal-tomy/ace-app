@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/admin_auth_service.dart';
+import '../../core/billing_rules.dart';
 import '../../core/business_mode.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../models/check_item.dart';
@@ -234,17 +235,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ],
               ),
               const SizedBox(height: 8),
-              ValueListenableBuilder<BusinessMode>(
-                valueListenable: BusinessModeState.notifier,
-                builder: (context, businessMode, _) {
-                  final text = businessMode == BusinessMode.normal
-                      ? '通常営業: 1時間¥1,200 / 以降30分ごと¥600（テキーラ・イエガー・マルガリータ・クライナー・コカボム・シャンパン系は別会計）'
-                      : 'イベント営業: 既存の注文合計で会計';
-                  return Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(text, style: Theme.of(context).textTheme.bodySmall),
-                  );
-                },
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '会計は伝票の営業モード（来店登録時）に基づいて計算されます',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
               StreamBuilder<List<PersonOption>>(
                 stream: _checkRepository.streamOpenPeople(),
@@ -389,95 +385,48 @@ class _TotalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final breakdown = _BillingBreakdown.from(summary: summary, items: items);
-    return ValueListenableBuilder<BusinessMode>(
-      valueListenable: BusinessModeState.notifier,
-      builder: (context, businessMode, _) {
-        final isNormal = businessMode == BusinessMode.normal;
-        final total = isNormal ? breakdown.normalTotal : summary.totalTaxIncluded;
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final breakdown = buildBillingBreakdown(
+      summary: summary,
+      items: items,
+      now: DateTime.now(),
+    );
+    final isNormal = summary.billingMode == BusinessMode.normal;
+    final isPaid = summary.status == 'paid';
+    final total = isPaid && summary.finalAmount != null
+        ? summary.finalAmount!
+        : (isNormal ? breakdown.normalTotal : summary.totalTaxIncluded);
+    final timeCharge = isPaid ? (summary.timeChargeFinal ?? breakdown.timeCharge) : breakdown.timeCharge;
+    final separate = isPaid
+        ? (summary.separateFinal ?? breakdown.separateDrinksTotal)
+        : breakdown.separateDrinksTotal;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(summary.customerNameSnapshot, style: Theme.of(context).textTheme.titleMedium),
-                    Text('明細件数は下のリストで確認'),
-                    Text('内税: ${currency.format(summary.taxAmount)}'),
-                    if (isNormal) ...[
-                      Text('通常飲料: ${currency.format(breakdown.mainDrinksTotal)}'),
-                      Text('時間料金: ${currency.format(breakdown.timeCharge)}'),
-                      Text('別会計: ${currency.format(breakdown.separateDrinksTotal)}'),
-                    ],
-                  ],
-                ),
-                Text(
-                  currency.format(total),
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
+                Text(summary.customerNameSnapshot, style: Theme.of(context).textTheme.titleMedium),
+                Text('営業モード: ${isNormal ? '通常営業' : 'イベント営業'}'),
+                    Text('登録時間: ${DateFormat('yyyy/MM/dd HH:mm').format(summary.createdAt)}'),
+                    Text('内税10%: ${currency.format(summary.taxAmount)}'),
+                if (isNormal) ...[
+                  Text('通常飲料: ${currency.format(breakdown.mainDrinksTotal)}'),
+                  Text('時間料金: ${currency.format(timeCharge)}'),
+                  Text('別会計: ${currency.format(separate)}'),
+                ],
+                if (isPaid) const Text('※会計確定済み（固定金額）'),
               ],
             ),
-          ),
-        );
-      },
+            Text(
+              currency.format(total),
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+          ],
+        ),
+      ),
     );
-  }
-}
-
-class _BillingBreakdown {
-  const _BillingBreakdown({
-    required this.mainDrinksTotal,
-    required this.separateDrinksTotal,
-    required this.timeCharge,
-  });
-
-  final int mainDrinksTotal;
-  final int separateDrinksTotal;
-  final int timeCharge;
-
-  int get normalTotal => mainDrinksTotal + separateDrinksTotal + timeCharge;
-
-  static _BillingBreakdown from({
-    required CheckSummary summary,
-    required List<CheckItem> items,
-  }) {
-    var separate = 0;
-    for (final item in items) {
-      if (_isSeparateAccounting(item)) {
-        separate += item.lineTotalTaxIncluded;
-      }
-    }
-    final allItemsTotal = summary.totalTaxIncluded;
-    final main = (allItemsTotal - separate).clamp(0, allItemsTotal);
-    final elapsed = DateTime.now().difference(summary.createdAt);
-    final charge = _calcTimeCharge(elapsed);
-    return _BillingBreakdown(
-      mainDrinksTotal: main,
-      separateDrinksTotal: separate,
-      timeCharge: charge,
-    );
-  }
-
-  static int _calcTimeCharge(Duration elapsed) {
-    final minutes = elapsed.inMinutes;
-    if (minutes <= 60) return 1200;
-    final extraMinutes = minutes - 60;
-    final extraHalfHours = (extraMinutes / 30).ceil();
-    return 1200 + (extraHalfHours * 600);
-  }
-
-  static bool _isSeparateAccounting(CheckItem item) {
-    final category = item.menuCategorySnapshot.toUpperCase();
-    final name = item.menuNameSnapshot.toLowerCase();
-    if (category == 'CHAMPAGNE') return true;
-    return name.contains('テキーラ') ||
-        name.contains('イエガー') ||
-        name.contains('マルガリータ') ||
-        name.contains('クライナー') ||
-        name.contains('コカボム') ||
-        name.contains('シャンパン');
   }
 }

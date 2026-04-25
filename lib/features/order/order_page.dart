@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/admin_auth_service.dart';
+import '../../core/billing_rules.dart';
+import '../../core/business_mode.dart';
 import '../../core/menu_category_catalog.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../data/repositories/menu_repository.dart';
 import '../admin/menu_edit_page.dart';
 import '../../models/check_item.dart';
+import '../../models/check_summary.dart';
 import '../../models/menu_item.dart';
 import '../../models/person_option.dart';
 import '../shared/person_selector.dart';
@@ -21,6 +24,7 @@ class OrderPage extends StatefulWidget {
 }
 
 class _OrderPageState extends State<OrderPage> {
+  static const _tequilaOthersCategory = 'TEQUILA_OTHERS';
   final _checkRepository = CheckRepository();
   final _menuRepository = MenuRepository();
   final _adminAuthService = AdminAuthService();
@@ -171,6 +175,20 @@ class _OrderPageState extends State<OrderPage> {
         (sum, line) => sum + (line.menu.priceTaxIncluded * line.qty),
       );
   int get _draftCount => _draftOrders.values.fold(0, (sum, line) => sum + line.qty);
+
+  String _normalModeCategoryKey(MenuItem item) {
+    if (item.category == 'TEQUILA' || item.category == 'OTHERS') {
+      return _tequilaOthersCategory;
+    }
+    return item.category;
+  }
+
+  String _normalModeCategoryLabel(String categoryKey) {
+    if (categoryKey == _tequilaOthersCategory) {
+      return 'テキーラ他';
+    }
+    return MenuCategoryCatalog.labelFor(categoryKey);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -345,57 +363,109 @@ class _OrderPageState extends State<OrderPage> {
                       );
                     }
 
-                    final categories = menus.map((m) => m.category).toSet().toList()
-                      ..sort(MenuCategoryCatalog.compareKeys);
-                    _activeCategory ??= categories.first;
-                    final shown = menus.where((m) => m.category == _activeCategory).toList();
+                    final selectedPerson = _selectedPerson;
+                    return StreamBuilder<CheckSummary?>(
+                      stream: selectedPerson == null
+                          ? null
+                          : _checkRepository.streamCheckSummary(selectedPerson.openCheckId),
+                      builder: (context, checkSummarySnapshot) {
+                        final checkMode = checkSummarySnapshot.data?.billingMode;
+                        final globalMode = BusinessModeState.notifier.value;
+                        final isNormalCheck =
+                            checkMode == BusinessMode.normal && globalMode == BusinessMode.normal;
+                        final sourceMenus = isNormalCheck
+                            ? menus.where(isSeparateAccountingMenu).toList()
+                            : menus;
 
-                    return Column(
-                      children: [
-                        SizedBox(
-                          height: 44,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: categories.length,
-                            separatorBuilder: (_, _) => const SizedBox(width: 8),
-                            itemBuilder: (context, index) {
-                              final cat = categories[index];
-                              final selected = cat == _activeCategory;
-                              return ChoiceChip(
-                                label: Text(MenuCategoryCatalog.labelFor(cat)),
-                                selected: selected,
-                                onSelected: (_) => setState(() => _activeCategory = cat),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: GridView.builder(
-                            itemCount: shown.length,
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              mainAxisSpacing: 8,
-                              crossAxisSpacing: 8,
-                              childAspectRatio: 2.2,
+                        if (sourceMenus.isEmpty) {
+                          return Center(
+                            child: Text(
+                              isNormalCheck
+                                  ? '通常営業では例外ドリンクのみ注文可能です（対象メニューが未登録です）'
+                                  : '表示可能なメニューがありません',
                             ),
-                            itemBuilder: (context, index) {
-                              final item = shown[index];
-                              return FilledButton.tonal(
-                                onPressed: _selectedPerson == null ? null : () => _addDraftItem(item),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                    const SizedBox(height: 4),
-                                    Text(_currency.format(item.priceTaxIncluded)),
-                                  ],
+                          );
+                        }
+
+                        final categories = sourceMenus
+                            .map((m) => isNormalCheck ? _normalModeCategoryKey(m) : m.category)
+                            .toSet()
+                            .toList()
+                          ..sort((a, b) {
+                            if (a == _tequilaOthersCategory) {
+                              return b == _tequilaOthersCategory ? 0 : 1;
+                            }
+                            if (b == _tequilaOthersCategory) return -1;
+                            return MenuCategoryCatalog.compareKeys(a, b);
+                          });
+                        if (!categories.contains(_activeCategory)) {
+                          _activeCategory = categories.first;
+                        }
+                        final shown = sourceMenus.where((m) {
+                          if (!isNormalCheck) return m.category == _activeCategory;
+                          return _normalModeCategoryKey(m) == _activeCategory;
+                        }).toList();
+
+                        return Column(
+                          children: [
+                            if (isNormalCheck)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '通常営業中: 例外ドリンクのみ注文できます',
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
+                              ),
+                            if (isNormalCheck) const SizedBox(height: 6),
+                            SizedBox(
+                              height: 44,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: categories.length,
+                                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                                itemBuilder: (context, index) {
+                                  final cat = categories[index];
+                                  final selected = cat == _activeCategory;
+                                  final categoryLabel = isNormalCheck
+                                      ? _normalModeCategoryLabel(cat)
+                                      : MenuCategoryCatalog.labelFor(cat);
+                                  return ChoiceChip(
+                                    label: Text(categoryLabel),
+                                    selected: selected,
+                                    onSelected: (_) => setState(() => _activeCategory = cat),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Expanded(
+                              child: GridView.builder(
+                                itemCount: shown.length,
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  mainAxisSpacing: 8,
+                                  crossAxisSpacing: 8,
+                                  childAspectRatio: 2.2,
+                                ),
+                                itemBuilder: (context, index) {
+                                  final item = shown[index];
+                                  return FilledButton.tonal(
+                                    onPressed: _selectedPerson == null ? null : () => _addDraftItem(item),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        const SizedBox(height: 4),
+                                        Text(_currency.format(item.priceTaxIncluded)),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     );
                   },
                 ),

@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/app_config.dart';
+import '../../core/billing_rules.dart';
+import '../../core/business_mode.dart';
 import '../../models/check_item.dart';
 import '../../models/check_summary.dart';
 import '../../models/menu_item.dart';
@@ -75,11 +77,13 @@ class CheckRepository {
 
   Future<void> createOpenCheck({
     required String customerName,
+    required BusinessMode billingMode,
   }) async {
     final customerId = _uuid.v4();
     await _checks.add({
       'customerId': customerId,
       'customerNameSnapshot': customerName.trim(),
+      'billingMode': billingMode.firestoreValue,
       'status': 'open',
       'subtotalTaxIncluded': 0,
       'taxAmount': 0,
@@ -167,9 +171,43 @@ class CheckRepository {
   }
 
   Future<void> finalizeCheck(String checkId) async {
-    await _checks.doc(checkId).update({
-      'status': 'paid',
-      'closedAt': FieldValue.serverTimestamp(),
+    final docRef = _checks.doc(checkId);
+    final itemsQuery = docRef.collection('items');
+    final itemsSnap = await itemsQuery.get();
+    final items = itemsSnap.docs
+        .map((doc) => CheckItem.fromMap(doc.id, doc.data()))
+        .toList();
+    await _firestore.runTransaction((txn) async {
+      final checkSnap = await txn.get(docRef);
+      if (!checkSnap.exists || checkSnap.data() == null) {
+        throw StateError('伝票が存在しません。');
+      }
+      final checkSummary = CheckSummary.fromMap(checkSnap.id, checkSnap.data()!);
+      if (!checkSummary.isOpen) {
+        throw StateError('会計確定済みです。');
+      }
+
+      var finalAmount = checkSummary.totalTaxIncluded;
+      var timeChargeFinal = 0;
+      var separateFinal = 0;
+      if (checkSummary.billingMode == BusinessMode.normal) {
+        final breakdown = buildBillingBreakdown(
+          summary: checkSummary,
+          items: items,
+          now: DateTime.now(),
+        );
+        finalAmount = breakdown.normalTotal;
+        timeChargeFinal = breakdown.timeCharge;
+        separateFinal = breakdown.separateDrinksTotal;
+      }
+
+      txn.update(docRef, {
+        'finalAmount': finalAmount,
+        'timeChargeFinal': timeChargeFinal,
+        'separateFinal': separateFinal,
+        'status': 'paid',
+        'closedAt': FieldValue.serverTimestamp(),
+      });
     });
   }
 }

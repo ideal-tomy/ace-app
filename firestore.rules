@@ -1,0 +1,59 @@
+rules_version='2'
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isStoreAdmin(storeId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/stores/$(storeId)/admins/$(request.auth.uid));
+    }
+
+    match /stores/{storeId} {
+      // 管理情報は店舗管理者のみが更新可能。
+      allow read: if isSignedIn();
+      allow create, update, delete: if isStoreAdmin(storeId);
+
+      match /admins/{adminUid} {
+        allow read: if isStoreAdmin(storeId);
+        allow create, update, delete: if isStoreAdmin(storeId);
+      }
+
+      match /menus/{menuId} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if isStoreAdmin(storeId);
+      }
+
+      match /customers/{customerId} {
+        allow read, write: if isSignedIn();
+      }
+
+      match /checks/{checkId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() &&
+          request.resource.data.status == 'open';
+        allow update: if isSignedIn() && (
+          // 通常スタッフは open の伝票を open のまま更新可能（注文追加/取消の合計更新など）。
+          (
+            resource.data.status == 'open' &&
+            request.resource.data.status == 'open'
+          ) ||
+          // 支払い確定（status変更）は管理者のみ許可。
+          isStoreAdmin(storeId)
+        );
+        allow delete: if isStoreAdmin(storeId);
+
+        match /items/{itemId} {
+          allow read, write: if isSignedIn();
+        }
+      }
+    }
+
+    // 既存のトップレベル構造を閉じる（移行後の誤アクセス防止）。
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

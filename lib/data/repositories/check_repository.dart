@@ -78,11 +78,13 @@ class CheckRepository {
   Future<void> createOpenCheck({
     required String customerName,
     required BusinessMode billingMode,
+    required int peopleCount,
   }) async {
     final customerId = _uuid.v4();
     await _checks.add({
       'customerId': customerId,
       'customerNameSnapshot': customerName.trim(),
+      'peopleCount': peopleCount,
       'billingMode': billingMode.firestoreValue,
       'status': 'open',
       'subtotalTaxIncluded': 0,

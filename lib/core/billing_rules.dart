@@ -7,11 +7,15 @@ class BillingBreakdown {
     required this.mainDrinksTotal,
     required this.separateDrinksTotal,
     required this.timeCharge,
+    required this.timeChargePerPerson,
+    required this.peopleCount,
   });
 
   final int mainDrinksTotal;
   final int separateDrinksTotal;
   final int timeCharge;
+  final int timeChargePerPerson;
+  final int peopleCount;
 
   int get normalTotal => mainDrinksTotal + separateDrinksTotal + timeCharge;
 }
@@ -33,11 +37,15 @@ BillingBreakdown buildBillingBreakdown({
   final allItemsTotal = summary.totalTaxIncluded;
   final main = (allItemsTotal - separate).clamp(0, allItemsTotal);
   final elapsed = now.difference(summary.createdAt);
-  final charge = calcTimeCharge(elapsed);
+  final peopleCount = summary.peopleCount <= 0 ? 1 : summary.peopleCount;
+  final chargePerPerson = calcTimeCharge(elapsed);
+  final charge = chargePerPerson * peopleCount;
   return BillingBreakdown(
     mainDrinksTotal: main,
     separateDrinksTotal: separate,
     timeCharge: charge,
+    timeChargePerPerson: chargePerPerson,
+    peopleCount: peopleCount,
   );
 }
 

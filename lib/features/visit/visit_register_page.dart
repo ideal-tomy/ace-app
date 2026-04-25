@@ -17,6 +17,7 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
   final _controller = TextEditingController();
   final _customerRepository = CustomerRepository();
   final _checkRepository = CheckRepository();
+  int _peopleCount = 1;
   bool _saving = false;
 
   @override
@@ -39,6 +40,7 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
       await _checkRepository.createOpenCheck(
         customerName: name,
         billingMode: BusinessModeState.notifier.value,
+        peopleCount: _peopleCount,
       );
       if (mounted) {
         Navigator.pop(context, name);
@@ -88,6 +90,33 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
                     },
                   );
                 },
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text('人数'),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    onPressed: _saving || _peopleCount <= 1
+                        ? null
+                        : () => setState(() => _peopleCount--),
+                    icon: const Icon(Icons.remove_circle_outline),
+                  ),
+                  SizedBox(
+                    width: 56,
+                    child: Text(
+                      '$_peopleCount名',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _saving
+                        ? null
+                        : () => setState(() => _peopleCount++),
+                    icon: const Icon(Icons.add_circle_outline),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               SizedBox(

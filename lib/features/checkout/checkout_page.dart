@@ -414,7 +414,10 @@ class _TotalCard extends StatelessWidget {
                     Text('内税10%: ${currency.format(summary.taxAmount)}'),
                 if (isNormal) ...[
                   Text('通常飲料: ${currency.format(breakdown.mainDrinksTotal)}'),
-                  Text('時間料金: ${currency.format(timeCharge)}'),
+                      Text(
+                        '時間料金: ${currency.format(timeCharge)} '
+                        '(${currency.format(breakdown.timeChargePerPerson)} × ${breakdown.peopleCount}名)',
+                      ),
                   Text('別会計: ${currency.format(separate)}'),
                 ],
                 if (isPaid) const Text('※会計確定済み（固定金額）'),

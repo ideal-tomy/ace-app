@@ -7,6 +7,7 @@ class CheckSummary {
     required this.id,
     required this.customerId,
     required this.customerNameSnapshot,
+    required this.peopleCount,
     required this.billingMode,
     required this.status,
     required this.totalTaxIncluded,
@@ -20,6 +21,7 @@ class CheckSummary {
   final String id;
   final String customerId;
   final String customerNameSnapshot;
+  final int peopleCount;
   final BusinessMode billingMode;
   final String status;
   final int totalTaxIncluded;
@@ -36,6 +38,7 @@ class CheckSummary {
       id: id,
       customerId: map['customerId'] as String? ?? '',
       customerNameSnapshot: map['customerNameSnapshot'] as String? ?? '',
+      peopleCount: (map['peopleCount'] as num?)?.toInt() ?? 1,
       billingMode: businessModeFromFirestore(map['billingMode'] as String?),
       status: map['status'] as String? ?? 'open',
       totalTaxIncluded: (map['totalTaxIncluded'] as num?)?.toInt() ?? 0,

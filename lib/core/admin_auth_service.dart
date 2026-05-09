@@ -6,6 +6,7 @@ import 'app_config.dart';
 enum AppModuleRole {
   accounting('accounting'),
   expense('expense'),
+  expenseSubmit('expense_submit'),
   both('both');
 
   const AppModuleRole(this.value);
@@ -42,8 +43,20 @@ class AdminAuthService {
     return const {
       AppModuleRole.accounting,
       AppModuleRole.expense,
+      AppModuleRole.expenseSubmit,
       AppModuleRole.both,
     };
+  }
+
+  /// 経費の新規登録・経費ログイン経路（admin / expense / both / expense_submit）
+  Future<bool> canPostExpense() async {
+    final user = _auth.currentUser;
+    if (user == null || user.isAnonymous) return false;
+    if (await isCurrentUserAdmin()) return true;
+    final roles = await getCurrentUserModuleRoles();
+    return roles.contains(AppModuleRole.expense) ||
+        roles.contains(AppModuleRole.both) ||
+        roles.contains(AppModuleRole.expenseSubmit);
   }
 
   Future<bool> canAccessAccounting() async {
@@ -53,9 +66,7 @@ class AdminAuthService {
   }
 
   Future<bool> canAccessExpense() async {
-    final roles = await getCurrentUserModuleRoles();
-    return roles.contains(AppModuleRole.expense) ||
-        roles.contains(AppModuleRole.both);
+    return canPostExpense();
   }
 
   Future<bool> isCurrentUserAdmin() async {

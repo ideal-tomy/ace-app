@@ -25,8 +25,17 @@ service cloud.firestore {
       return isStoreAdmin(storeId) || hasStoreRole(storeId, 'accounting');
     }
 
-    function canExpense(storeId) {
-      return isStoreAdmin(storeId) || hasStoreRole(storeId, 'expense');
+    /// 経費の新規投稿（自分の UID で createdBy 必須）
+    function canPostExpense(storeId) {
+      return isStoreAdmin(storeId) ||
+        hasStoreRole(storeId, 'expense') ||
+        hasStoreRole(storeId, 'both') ||
+        hasStoreRole(storeId, 'expense_submit');
+    }
+
+    function canReadOwnExpense(storeId) {
+      return canPostExpense(storeId) &&
+        resource.data.createdBy == request.auth.uid;
     }
 
     match /stores/{storeId} {
@@ -79,7 +88,20 @@ service cloud.firestore {
       }
 
       match /expense_entries/{entryId} {
-        allow read, create, update: if canExpense(storeId);
+        allow read: if isStoreAdmin(storeId) ||
+          canReadOwnExpense(storeId);
+
+        // memo / accountItemId は任意。その他フィールドのみ拒否しないよう hasAll で必須キーのみ検証する。
+        allow create: if canPostExpense(storeId) &&
+          request.resource.data.createdBy == request.auth.uid &&
+          request.resource.data.keys().hasAll(['date', 'category', 'amount', 'createdBy', 'updatedAt']);
+
+        allow update: if isStoreAdmin(storeId) ||
+          (
+            canReadOwnExpense(storeId) &&
+            request.resource.data.createdBy == resource.data.createdBy
+          );
+
         allow delete: if isStoreAdmin(storeId);
       }
     }

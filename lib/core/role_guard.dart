@@ -22,7 +22,7 @@ class RoleGuard extends StatelessWidget {
     return FutureBuilder<bool>(
       future: permission == RequiredModulePermission.accounting
           ? authService.canAccessAccounting()
-          : authService.canAccessExpense(),
+          : authService.canPostExpense(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Scaffold(

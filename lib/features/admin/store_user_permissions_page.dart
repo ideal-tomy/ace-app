@@ -5,7 +5,13 @@ import '../../core/admin_auth_service.dart';
 import '../../data/repositories/store_user_permissions_repository.dart';
 import '../../models/store_user_permissions.dart';
 
-enum _PermissionPreset { none, accountingOnly, expenseOnly, both }
+enum _PermissionPreset {
+  none,
+  accountingOnly,
+  expenseOnly,
+  expenseSubmitOnly,
+  both,
+}
 
 class StoreUserPermissionsPage extends StatefulWidget {
   const StoreUserPermissionsPage({super.key});
@@ -102,20 +108,19 @@ class _StoreUserPermissionsPageState extends State<StoreUserPermissionsPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      SegmentedButton<_PermissionPreset>(
-                        segments: [
+                      DropdownMenu<_PermissionPreset>(
+                        expandedInsets: EdgeInsets.zero,
+                        initialSelection: preset,
+                        label: const Text('権限プリセット'),
+                        dropdownMenuEntries: [
                           for (final p in _PermissionPreset.values)
-                            ButtonSegment<_PermissionPreset>(
+                            DropdownMenuEntry<_PermissionPreset>(
                               value: p,
-                              label: Text(_presetShortLabel(p)),
-                              tooltip: _presetLabel(p),
+                              label: _presetLabel(p),
                             ),
                         ],
-                        selected: {preset},
-                        emptySelectionAllowed: false,
-                        onSelectionChanged: (next) {
-                          if (next.isEmpty) return;
-                          setLocal(() => preset = next.first);
+                        onSelected: (v) {
+                          if (v != null) setLocal(() => preset = v);
                         },
                       ),
                     ],
@@ -330,13 +335,22 @@ class _StoreUserPermissionsPageState extends State<StoreUserPermissionsPage> {
   }
 
   static _PermissionPreset _presetFromRoles(List<String> roles) {
-    if (roles.isEmpty) return _PermissionPreset.none;
-    if (roles.contains('both')) return _PermissionPreset.both;
-    final acc = roles.contains('accounting');
-    final exp = roles.contains('expense');
-    if (acc && exp) return _PermissionPreset.both;
-    if (acc) return _PermissionPreset.accountingOnly;
-    if (exp) return _PermissionPreset.expenseOnly;
+    final normalized = roles.map((x) => x.trim()).where((x) => x.isNotEmpty);
+    final s = normalized.toSet();
+    if (s.isEmpty) return _PermissionPreset.none;
+    if (s.contains('both')) return _PermissionPreset.both;
+    if (s.contains('accounting') && s.contains('expense')) {
+      return _PermissionPreset.both;
+    }
+    if (Set<String>.from(s) == {'accounting'}) {
+      return _PermissionPreset.accountingOnly;
+    }
+    if (Set<String>.from(s) == {'expense'}) {
+      return _PermissionPreset.expenseOnly;
+    }
+    if (Set<String>.from(s) == {'expense_submit'}) {
+      return _PermissionPreset.expenseSubmitOnly;
+    }
     return _PermissionPreset.none;
   }
 
@@ -347,22 +361,11 @@ class _StoreUserPermissionsPageState extends State<StoreUserPermissionsPage> {
       case _PermissionPreset.accountingOnly:
         return '会計のみ（accounting）';
       case _PermissionPreset.expenseOnly:
-        return '経費のみ（expense）';
+        return '経費（expense・登録のみ・他人一覧不可）';
+      case _PermissionPreset.expenseSubmitOnly:
+        return '経費入力のみ（expense_submit）';
       case _PermissionPreset.both:
         return '両方（both）';
-    }
-  }
-
-  static String _presetShortLabel(_PermissionPreset p) {
-    switch (p) {
-      case _PermissionPreset.none:
-        return 'なし';
-      case _PermissionPreset.accountingOnly:
-        return '会計';
-      case _PermissionPreset.expenseOnly:
-        return '経費';
-      case _PermissionPreset.both:
-        return '両方';
     }
   }
 
@@ -374,6 +377,8 @@ class _StoreUserPermissionsPageState extends State<StoreUserPermissionsPage> {
         return const <String>['accounting'];
       case _PermissionPreset.expenseOnly:
         return const <String>['expense'];
+      case _PermissionPreset.expenseSubmitOnly:
+        return const <String>['expense_submit'];
       case _PermissionPreset.both:
         return const <String>['both'];
     }

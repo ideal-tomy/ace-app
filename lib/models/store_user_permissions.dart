@@ -36,9 +36,11 @@ class StoreUserPermissions {
     if (moduleRoles.contains('both')) return '両方';
     final hasAcc = moduleRoles.contains('accounting');
     final hasExp = moduleRoles.contains('expense');
+    final hasSubmit = moduleRoles.contains('expense_submit');
     if (hasAcc && hasExp) return '会計・経費';
     if (hasAcc) return '会計のみ';
     if (hasExp) return '経費のみ';
+    if (hasSubmit) return '経費入力のみ';
     return moduleRoles.join(', ');
   }
 }

@@ -3,8 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/admin_auth_service.dart';
 import '../../core/business_mode.dart';
+import '../admin/admin_login_dialog.dart';
 import '../admin/menu_edit_page.dart';
-import '../admin/store_user_permissions_page.dart';
 import '../checkout/checkout_page.dart';
 import '../order/order_page.dart';
 import '../visit/visit_register_page.dart';
@@ -41,9 +41,9 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final loggedIn = await showDialog<bool>(
+    final loggedIn = await showAdminLoginDialog(
       context: context,
-      builder: (_) => _AdminLoginDialog(adminAuthService: _adminAuthService),
+      adminAuthService: _adminAuthService,
     );
     if (!mounted || loggedIn != true) return;
 
@@ -56,31 +56,6 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     await Navigator.pushNamed(context, MenuEditPage.routeName);
-  }
-
-  Future<void> _openStoreUserPermissionsWithAdminCheck() async {
-    final alreadyAdmin = await _adminAuthService.isCurrentUserAdmin();
-    if (!mounted) return;
-    if (alreadyAdmin) {
-      await Navigator.pushNamed(context, StoreUserPermissionsPage.routeName);
-      return;
-    }
-
-    final loggedIn = await showDialog<bool>(
-      context: context,
-      builder: (_) => _AdminLoginDialog(adminAuthService: _adminAuthService),
-    );
-    if (!mounted || loggedIn != true) return;
-
-    final nowAdmin = await _adminAuthService.isCurrentUserAdmin();
-    if (!mounted) return;
-    if (!nowAdmin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('管理者権限がありません。admins設定を確認してください')),
-      );
-      return;
-    }
-    await Navigator.pushNamed(context, StoreUserPermissionsPage.routeName);
   }
 
   Future<void> _logoutToAnonymous() async {
@@ -188,115 +163,11 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 24),
               _MenuEditEntryButton(onTap: _openMenuEditWithAdminCheck),
-              const SizedBox(height: 12),
-              _UserPermissionsEntryButton(
-                onTap: _openStoreUserPermissionsWithAdminCheck,
-              ),
               const SizedBox(height: 32),
             ],
           ),
         ),
       ),
-    );
-  }
-}
-
-class _AdminLoginDialog extends StatefulWidget {
-  const _AdminLoginDialog({required this.adminAuthService});
-
-  final AdminAuthService adminAuthService;
-
-  @override
-  State<_AdminLoginDialog> createState() => _AdminLoginDialogState();
-}
-
-class _AdminLoginDialogState extends State<_AdminLoginDialog> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _submitting = false;
-  String? _errorText;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _errorText = 'メールアドレスとパスワードを入力してください');
-      return;
-    }
-    setState(() {
-      _submitting = true;
-      _errorText = null;
-    });
-    try {
-      await widget.adminAuthService.signInWithEmailPassword(
-        email: email,
-        password: password,
-      );
-      if (mounted) Navigator.pop(context, true);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _errorText = 'ログインに失敗しました: $error');
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('管理者ログイン'),
-      content: SizedBox(
-        width: 360,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(
-                labelText: 'メールアドレス',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.emailAddress,
-              enabled: !_submitting,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(
-                labelText: 'パスワード',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-              enabled: !_submitting,
-              onSubmitted: (_) => _submitting ? null : _submit(),
-            ),
-            if (_errorText != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                _errorText!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _submitting ? null : () => Navigator.pop(context, false),
-          child: const Text('キャンセル'),
-        ),
-        FilledButton(
-          onPressed: _submitting ? null : _submit,
-          child: Text(_submitting ? '確認中...' : 'ログイン'),
-        ),
-      ],
     );
   }
 }
@@ -326,41 +197,6 @@ class _MenuEditEntryButton extends StatelessWidget {
         icon: const Icon(Icons.menu_book_outlined, size: 24),
         label: Text(
           'メニュー編集',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: onFill,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _UserPermissionsEntryButton extends StatelessWidget {
-  const _UserPermissionsEntryButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    const fill = Color(0xFF5B21B6);
-    const onFill = Color(0xFFFAFAFA);
-    return SizedBox(
-      height: 60,
-      child: FilledButton.icon(
-        onPressed: onTap,
-        style: FilledButton.styleFrom(
-          backgroundColor: fill,
-          foregroundColor: onFill,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        ),
-        icon: const Icon(Icons.group_outlined, size: 24),
-        label: Text(
-          'ユーザー権限（会計／経費）',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: onFill,
             fontWeight: FontWeight.w600,

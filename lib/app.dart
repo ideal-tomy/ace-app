@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'core/admin_auth_service.dart';
 import 'core/role_guard.dart';
 import 'features/accounting/accounting_dashboard_page.dart';
+import 'features/admin/expense_summary_admin_page.dart';
 import 'features/admin/menu_edit_page.dart';
 import 'features/admin/store_user_permissions_page.dart';
 import 'features/auth/login_entry_target.dart';
@@ -83,6 +84,8 @@ class AceApp extends StatelessWidget {
         MenuEditPage.routeName: (_) => const MenuEditPage(),
         StoreUserPermissionsPage.routeName: (_) =>
             const StoreUserPermissionsPage(),
+        ExpenseSummaryAdminPage.routeName: (_) =>
+            const ExpenseSummaryAdminPage(),
       },
     );
   }
@@ -175,13 +178,14 @@ class _AuthGateState extends State<_AuthGate> {
             final canAccounting =
                 roles.contains(AppModuleRole.accounting) ||
                 roles.contains(AppModuleRole.both);
-            final canExpense =
+            final canExpenseRoute =
                 roles.contains(AppModuleRole.expense) ||
-                roles.contains(AppModuleRole.both);
-            if (canAccounting && !canExpense) {
+                roles.contains(AppModuleRole.both) ||
+                roles.contains(AppModuleRole.expenseSubmit);
+            if (canAccounting && !canExpenseRoute) {
               return const HomePage();
             }
-            if (canExpense && !canAccounting) {
+            if (canExpenseRoute && !canAccounting) {
               return const ExpenseDashboardPage();
             }
             return const HomePage();

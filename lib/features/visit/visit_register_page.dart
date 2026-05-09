@@ -18,7 +18,14 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
   final _customerRepository = CustomerRepository();
   final _checkRepository = CheckRepository();
   int _peopleCount = 1;
+  late BusinessMode _selectedBusinessMode;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedBusinessMode = BusinessModeState.notifier.value;
+  }
 
   @override
   void dispose() {
@@ -29,17 +36,18 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
   Future<void> _register() async {
     final name = _controller.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('名前またはあだ名を入力してください')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('名前またはあだ名を入力してください')));
       return;
     }
     setState(() => _saving = true);
     try {
       await _customerRepository.createCustomerIfNeeded(name);
+      BusinessModeState.notifier.value = _selectedBusinessMode;
       await _checkRepository.createOpenCheck(
         customerName: name,
-        billingMode: BusinessModeState.notifier.value,
+        billingMode: _selectedBusinessMode,
         peopleCount: _peopleCount,
       );
       if (mounted) {
@@ -47,9 +55,9 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('登録に失敗しました: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('登録に失敗しました: $error')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -71,23 +79,28 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
                   final names = snapshot.data ?? const [];
                   return Autocomplete<String>(
                     optionsBuilder: (value) {
-                      if (value.text.isEmpty) return const Iterable<String>.empty();
-                      return names.where((n) =>
-                          n.toLowerCase().contains(value.text.toLowerCase()));
-                    },
-                    onSelected: (value) => _controller.text = value,
-                    fieldViewBuilder: (context, textController, focusNode, onSubmit) {
-                      textController.text = _controller.text;
-                      return TextField(
-                        controller: textController,
-                        focusNode: focusNode,
-                        decoration: const InputDecoration(
-                          labelText: '来店者名',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (v) => _controller.text = v,
+                      if (value.text.isEmpty) {
+                        return const Iterable<String>.empty();
+                      }
+                      return names.where(
+                        (n) =>
+                            n.toLowerCase().contains(value.text.toLowerCase()),
                       );
                     },
+                    onSelected: (value) => _controller.text = value,
+                    fieldViewBuilder:
+                        (context, textController, focusNode, onSubmit) {
+                          textController.text = _controller.text;
+                          return TextField(
+                            controller: textController,
+                            focusNode: focusNode,
+                            decoration: const InputDecoration(
+                              labelText: '来店者名',
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (v) => _controller.text = v,
+                          );
+                        },
                   );
                 },
               ),
@@ -115,6 +128,33 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
                         ? null
                         : () => setState(() => _peopleCount++),
                     icon: const Icon(Icons.add_circle_outline),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<BusinessMode>(
+                      initialValue: _selectedBusinessMode,
+                      decoration: const InputDecoration(
+                        labelText: '営業モード',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: BusinessMode.event,
+                          child: Text('イベント営業'),
+                        ),
+                        DropdownMenuItem(
+                          value: BusinessMode.normal,
+                          child: Text('通常営業'),
+                        ),
+                      ],
+                      onChanged: _saving
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+                              setState(() => _selectedBusinessMode = value);
+                            },
+                    ),
                   ),
                 ],
               ),

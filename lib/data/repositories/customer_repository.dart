@@ -4,8 +4,8 @@ import '../../core/app_config.dart';
 
 class CustomerRepository {
   CustomerRepository({FirebaseFirestore? firestore, String? storeId})
-      : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storeId = storeId ?? AppConfig.storeId;
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _storeId = storeId ?? AppConfig.storeId;
 
   final FirebaseFirestore _firestore;
   final String _storeId;
@@ -29,11 +29,14 @@ class CustomerRepository {
   }
 
   Stream<List<String>> streamCustomerNames() {
-    return _customers.orderBy('displayName').snapshots().map(
-      (snapshot) => snapshot.docs
-          .map((doc) => (doc.data()['displayName'] as String?) ?? '')
-          .where((name) => name.isNotEmpty)
-          .toList(),
-    );
+    return _customers
+        .orderBy('displayName')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => (doc.data()['displayName'] as String?) ?? '')
+              .where((name) => name.isNotEmpty)
+              .toList(),
+        );
   }
 }

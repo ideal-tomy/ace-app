@@ -1,12 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'core/admin_auth_service.dart';
+import 'core/role_guard.dart';
+import 'features/accounting/accounting_dashboard_page.dart';
 import 'features/admin/menu_edit_page.dart';
+import 'features/admin/store_user_permissions_page.dart';
+import 'features/auth/login_entry_target.dart';
 import 'features/auth/login_page.dart';
+import 'features/auth/module_landing_page.dart';
 import 'features/checkout/checkout_page.dart';
+import 'features/expense/expense_dashboard_page.dart';
 import 'features/home/home_page.dart';
 import 'features/order/order_page.dart';
 import 'features/visit/visit_register_page.dart';
+
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 class AceApp extends StatelessWidget {
   const AceApp({super.key, this.initializationError});
@@ -16,6 +27,7 @@ class AceApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       title: '簡易会計',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -50,17 +62,66 @@ class AceApp extends StatelessWidget {
           ? const _AuthGate()
           : FirebaseInitErrorScreen(error: initializationError!),
       routes: {
+        HomePage.routeName: (_) => const HomePage(),
         VisitRegisterPage.routeName: (_) => const VisitRegisterPage(),
         OrderPage.routeName: (_) => const OrderPage(),
-        CheckoutPage.routeName: (_) => const CheckoutPage(),
+        CheckoutPage.routeName: (_) => const RoleGuard(
+          permission: RequiredModulePermission.accounting,
+          fallbackRouteName: HomePage.routeName,
+          child: CheckoutPage(),
+        ),
+        AccountingDashboardPage.routeName: (_) => const RoleGuard(
+          permission: RequiredModulePermission.accounting,
+          fallbackRouteName: HomePage.routeName,
+          child: AccountingDashboardPage(),
+        ),
+        ExpenseDashboardPage.routeName: (_) => const RoleGuard(
+          permission: RequiredModulePermission.expense,
+          fallbackRouteName: HomePage.routeName,
+          child: ExpenseDashboardPage(),
+        ),
         MenuEditPage.routeName: (_) => const MenuEditPage(),
+        StoreUserPermissionsPage.routeName: (_) =>
+            const StoreUserPermissionsPage(),
       },
     );
   }
 }
 
-class _AuthGate extends StatelessWidget {
+/// ログイン前: 会計／経費の選択 → ログイン。その後または既存セッションは従来どおり権限ベース。
+class _AuthGate extends StatefulWidget {
   const _AuthGate();
+
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  final _adminAuthService = AdminAuthService();
+  StreamSubscription<User?>? _authSubscription;
+
+  /// ログアウトでリセット。選択直後〜ログイン成功後まで保持し、ログイン済みツリーの初期画面に使う。
+  LoginEntryTarget? _reservedEntryAfterAuth;
+
+  @override
+  void initState() {
+    super.initState();
+    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((
+      User? user,
+    ) {
+      if (user != null || !mounted) return;
+      appNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+      setState(() {
+        _reservedEntryAfterAuth = null;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,8 +129,64 @@ class _AuthGate extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         final user = snapshot.data;
-        if (user == null) return const LoginPage();
-        return const HomePage();
+        if (user == null) {
+          final reserved = _reservedEntryAfterAuth;
+          if (reserved == null) {
+            return ModuleLandingPage(
+              onSelectAccounting: () => setState(
+                () => _reservedEntryAfterAuth = LoginEntryTarget.accounting,
+              ),
+              onSelectExpense: () => setState(
+                () => _reservedEntryAfterAuth = LoginEntryTarget.expense,
+              ),
+            );
+          }
+          return LoginPage(
+            entryTarget: reserved,
+            onBackToModuleSelection: () =>
+                setState(() => _reservedEntryAfterAuth = null),
+          );
+        }
+
+        if (_reservedEntryAfterAuth == LoginEntryTarget.accounting) {
+          return const RoleGuard(
+            permission: RequiredModulePermission.accounting,
+            fallbackRouteName: HomePage.routeName,
+            child: HomePage(),
+          );
+        }
+        if (_reservedEntryAfterAuth == LoginEntryTarget.expense) {
+          return const RoleGuard(
+            permission: RequiredModulePermission.expense,
+            fallbackRouteName: HomePage.routeName,
+            child: ExpenseDashboardPage(),
+          );
+        }
+
+        return FutureBuilder<Set<AppModuleRole>>(
+          future: _adminAuthService.getCurrentUserModuleRoles(),
+          builder: (context, rolesSnapshot) {
+            if (!rolesSnapshot.hasData) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final roles = rolesSnapshot.data!;
+            final canAccounting =
+                roles.contains(AppModuleRole.accounting) ||
+                roles.contains(AppModuleRole.both);
+            final canExpense =
+                roles.contains(AppModuleRole.expense) ||
+                roles.contains(AppModuleRole.both);
+            if (canAccounting && !canExpense) {
+              return const HomePage();
+            }
+            if (canExpense && !canAccounting) {
+              return const ExpenseDashboardPage();
+            }
+            return const HomePage();
+          },
+        );
       },
     );
   }

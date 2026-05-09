@@ -5,14 +5,16 @@ enum BusinessMode { event, normal }
 class BusinessModeState {
   BusinessModeState._();
 
-  static final ValueNotifier<BusinessMode> notifier = ValueNotifier(BusinessMode.event);
+  static final ValueNotifier<BusinessMode> notifier = ValueNotifier(
+    BusinessMode.event,
+  );
 }
 
 extension BusinessModeCodec on BusinessMode {
   String get firestoreValue => switch (this) {
-        BusinessMode.event => 'event',
-        BusinessMode.normal => 'normal',
-      };
+    BusinessMode.event => 'event',
+    BusinessMode.normal => 'normal',
+  };
 }
 
 BusinessMode businessModeFromFirestore(String? raw) {

@@ -36,15 +36,18 @@ class _PersonSelectorState extends State<PersonSelector> {
   @override
   Widget build(BuildContext context) {
     final filtered = widget.people
-        .where((p) => p.displayName.toLowerCase().contains(_keyword.toLowerCase()))
+        .where(
+          (p) => p.displayName.toLowerCase().contains(_keyword.toLowerCase()),
+        )
         .toList();
 
     if (_selectedCheckId == null && filtered.isNotEmpty) {
       _selectedCheckId = filtered.first.openCheckId;
     }
 
-    final selectedPerson =
-        filtered.where((p) => p.openCheckId == _selectedCheckId).firstOrNull;
+    final selectedPerson = filtered
+        .where((p) => p.openCheckId == _selectedCheckId)
+        .firstOrNull;
     if (selectedPerson != null && !_notifiedInitial) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         widget.onSelected(selectedPerson);

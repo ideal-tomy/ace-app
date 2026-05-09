@@ -10,14 +10,10 @@ import '../../models/menu_item.dart';
 import '../../models/person_option.dart';
 
 class CheckRepository {
-  CheckRepository({
-    FirebaseFirestore? firestore,
-    Uuid? uuid,
-    String? storeId,
-  })
-      : _firestore = firestore ?? FirebaseFirestore.instance,
-        _uuid = uuid ?? const Uuid(),
-        _storeId = storeId ?? AppConfig.storeId;
+  CheckRepository({FirebaseFirestore? firestore, Uuid? uuid, String? storeId})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _uuid = uuid ?? const Uuid(),
+      _storeId = storeId ?? AppConfig.storeId;
 
   final FirebaseFirestore _firestore;
   final Uuid _uuid;
@@ -27,25 +23,26 @@ class CheckRepository {
       _firestore.collection('stores').doc(_storeId).collection('checks');
 
   Stream<List<PersonOption>> streamOpenPeople() {
-    return _checks
-        .where('status', isEqualTo: 'open')
-        .snapshots()
-        .map(
-          (snapshot) {
-            final people = snapshot.docs
-              .map((doc) => PersonOption(
-                    customerId: (doc.data()['customerId'] as String?) ?? '',
-                    displayName:
-                        (doc.data()['customerNameSnapshot'] as String?) ?? '',
-                    openCheckId: doc.id,
-                    createdAtMillis:
-                        ((doc.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch) ?? 0,
-                  ))
-              .toList();
-            people.sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
-            return people;
-          },
-        );
+    return _checks.where('status', isEqualTo: 'open').snapshots().map((
+      snapshot,
+    ) {
+      final people = snapshot.docs
+          .map(
+            (doc) => PersonOption(
+              customerId: (doc.data()['customerId'] as String?) ?? '',
+              displayName:
+                  (doc.data()['customerNameSnapshot'] as String?) ?? '',
+              openCheckId: doc.id,
+              createdAtMillis:
+                  ((doc.data()['createdAt'] as Timestamp?)
+                      ?.millisecondsSinceEpoch) ??
+                  0,
+            ),
+          )
+          .toList();
+      people.sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
+      return people;
+    });
   }
 
   Stream<List<CheckSummary>> streamOpenChecks() {
@@ -53,7 +50,11 @@ class CheckRepository {
         .where('status', isEqualTo: 'open')
         .orderBy('customerNameSnapshot')
         .snapshots()
-        .map((s) => s.docs.map((doc) => CheckSummary.fromMap(doc.id, doc.data())).toList());
+        .map(
+          (s) => s.docs
+              .map((doc) => CheckSummary.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   Stream<CheckSummary?> streamCheckSummary(String checkId) {
@@ -70,8 +71,9 @@ class CheckRepository {
         .orderBy('orderedAt', descending: true)
         .snapshots()
         .map(
-          (snapshot) =>
-              snapshot.docs.map((doc) => CheckItem.fromMap(doc.id, doc.data())).toList(),
+          (snapshot) => snapshot.docs
+              .map((doc) => CheckItem.fromMap(doc.id, doc.data()))
+              .toList(),
         );
   }
 
@@ -160,7 +162,10 @@ class CheckRepository {
         throw StateError('会計確定済みの伝票は明細を削除できません。');
       }
       final currentTotal = (data['totalTaxIncluded'] as num?)?.toInt() ?? 0;
-      final newTotal = (currentTotal - lineTotalTaxIncluded).clamp(0, currentTotal);
+      final newTotal = (currentTotal - lineTotalTaxIncluded).clamp(
+        0,
+        currentTotal,
+      );
       final taxAmount = (newTotal * 10 / 110).floor();
 
       txn.delete(itemRef);
@@ -184,28 +189,32 @@ class CheckRepository {
       if (!checkSnap.exists || checkSnap.data() == null) {
         throw StateError('伝票が存在しません。');
       }
-      final checkSummary = CheckSummary.fromMap(checkSnap.id, checkSnap.data()!);
+      final checkSummary = CheckSummary.fromMap(
+        checkSnap.id,
+        checkSnap.data()!,
+      );
       if (!checkSummary.isOpen) {
         throw StateError('会計確定済みです。');
       }
 
+      final breakdown = buildBillingBreakdown(
+        summary: checkSummary,
+        items: items,
+        now: DateTime.now(),
+      );
       var finalAmount = checkSummary.totalTaxIncluded;
       var timeChargeFinal = 0;
-      var separateFinal = 0;
+      var separateFinal = breakdown.merchandiseTotal;
+      var merchandiseFinal = breakdown.merchandiseTotal;
       if (checkSummary.billingMode == BusinessMode.normal) {
-        final breakdown = buildBillingBreakdown(
-          summary: checkSummary,
-          items: items,
-          now: DateTime.now(),
-        );
         finalAmount = breakdown.normalTotal;
         timeChargeFinal = breakdown.timeCharge;
-        separateFinal = breakdown.separateDrinksTotal;
       }
 
       txn.update(docRef, {
         'finalAmount': finalAmount,
         'timeChargeFinal': timeChargeFinal,
+        'merchandiseFinal': merchandiseFinal,
         'separateFinal': separateFinal,
         'status': 'paid',
         'closedAt': FieldValue.serverTimestamp(),

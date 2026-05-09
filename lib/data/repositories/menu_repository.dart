@@ -9,8 +9,8 @@ import '../../models/menu_item.dart';
 
 class MenuRepository {
   MenuRepository({FirebaseFirestore? firestore, String? storeId})
-      : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storeId = storeId ?? AppConfig.storeId;
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _storeId = storeId ?? AppConfig.storeId;
 
   final FirebaseFirestore _firestore;
   final String _storeId;
@@ -19,38 +19,39 @@ class MenuRepository {
 
   /// 管理画面用。非表示（isActive: false）も含めて全件。
   Stream<List<MenuItem>> streamAllMenus() {
-    return _menus.snapshots().map(
-      (snapshot) {
-        final menus = snapshot.docs
-            .map((doc) => MenuItem.fromMap(doc.id, doc.data()))
-            .toList();
-        menus.sort((a, b) {
-          final categoryCompare = MenuCategoryCatalog.compareKeys(a.category, b.category);
-          if (categoryCompare != 0) return categoryCompare;
-          return a.sortOrder.compareTo(b.sortOrder);
-        });
-        return menus;
-      },
-    );
+    return _menus.snapshots().map((snapshot) {
+      final menus = snapshot.docs
+          .map((doc) => MenuItem.fromMap(doc.id, doc.data()))
+          .toList();
+      menus.sort((a, b) {
+        final categoryCompare = MenuCategoryCatalog.compareKeys(
+          a.category,
+          b.category,
+        );
+        if (categoryCompare != 0) return categoryCompare;
+        return a.sortOrder.compareTo(b.sortOrder);
+      });
+      return menus;
+    });
   }
 
   Stream<List<MenuItem>> streamActiveMenus() {
-    return _menus
-        .where('isActive', isEqualTo: true)
-        .snapshots()
-        .map(
-          (snapshot) {
-            final menus = snapshot.docs
-              .map((doc) => MenuItem.fromMap(doc.id, doc.data()))
-              .toList();
-            menus.sort((a, b) {
-              final categoryCompare = MenuCategoryCatalog.compareKeys(a.category, b.category);
-              if (categoryCompare != 0) return categoryCompare;
-              return a.sortOrder.compareTo(b.sortOrder);
-            });
-            return menus;
-          },
+    return _menus.where('isActive', isEqualTo: true).snapshots().map((
+      snapshot,
+    ) {
+      final menus = snapshot.docs
+          .map((doc) => MenuItem.fromMap(doc.id, doc.data()))
+          .toList();
+      menus.sort((a, b) {
+        final categoryCompare = MenuCategoryCatalog.compareKeys(
+          a.category,
+          b.category,
         );
+        if (categoryCompare != 0) return categoryCompare;
+        return a.sortOrder.compareTo(b.sortOrder);
+      });
+      return menus;
+    });
   }
 
   Future<void> seedMenusFromAssetIfEmpty() async {
@@ -81,7 +82,9 @@ class MenuRepository {
     if (priceTaxIncluded < 0) {
       throw ArgumentError('金額が不正です');
     }
-    final inCategory = await _menus.where('category', isEqualTo: category).get();
+    final inCategory = await _menus
+        .where('category', isEqualTo: category)
+        .get();
     var maxOrder = 0;
     for (final d in inCategory.docs) {
       final so = (d.data()['sortOrder'] as num?)?.toInt() ?? 0;

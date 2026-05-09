@@ -16,6 +16,7 @@ class CheckSummary {
     this.finalAmount,
     this.timeChargeFinal,
     this.separateFinal,
+    this.merchandiseFinal,
   });
 
   final String id;
@@ -30,6 +31,7 @@ class CheckSummary {
   final int? finalAmount;
   final int? timeChargeFinal;
   final int? separateFinal;
+  final int? merchandiseFinal;
 
   bool get isOpen => status == 'open';
 
@@ -49,6 +51,7 @@ class CheckSummary {
       finalAmount: (map['finalAmount'] as num?)?.toInt(),
       timeChargeFinal: (map['timeChargeFinal'] as num?)?.toInt(),
       separateFinal: (map['separateFinal'] as num?)?.toInt(),
+      merchandiseFinal: (map['merchandiseFinal'] as num?)?.toInt(),
     );
   }
 }

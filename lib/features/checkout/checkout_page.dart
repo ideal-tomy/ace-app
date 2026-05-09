@@ -22,7 +22,11 @@ class CheckoutPage extends StatefulWidget {
 class _CheckoutPageState extends State<CheckoutPage> {
   final _checkRepository = CheckRepository();
   final _adminAuthService = AdminAuthService();
-  final _currency = NumberFormat.currency(locale: 'ja_JP', symbol: '¥', decimalDigits: 0);
+  final _currency = NumberFormat.currency(
+    locale: 'ja_JP',
+    symbol: '¥',
+    decimalDigits: 0,
+  );
   PersonOption? _selectedPerson;
   bool _isAdmin = false;
   bool _adminBusy = false;
@@ -62,15 +66,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
         lineTotalTaxIncluded: item.lineTotalTaxIncluded,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('明細を削除しました')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('明細を削除しました')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('削除に失敗しました: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
       }
     } finally {
       if (mounted) setState(() => _removingLine = false);
@@ -83,103 +87,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
     await _checkRepository.finalizeCheck(person.openCheckId);
     if (mounted) {
       setState(() => _selectedPerson = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('会計を確定しました')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('会計を確定しました')));
     }
   }
 
   Future<void> _loginAsAdmin() async {
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
-    String? errorText;
-    var submitting = false;
-
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            Future<void> submit() async {
-              final email = emailController.text.trim();
-              final password = passwordController.text;
-              if (email.isEmpty || password.isEmpty) {
-                setDialogState(() => errorText = 'メールアドレスとパスワードを入力してください');
-                return;
-              }
-              setDialogState(() {
-                submitting = true;
-                errorText = null;
-              });
-              try {
-                await _adminAuthService.signInWithEmailPassword(
-                  email: email,
-                  password: password,
-                );
-                if (ctx.mounted) Navigator.pop(ctx, true);
-              } catch (error) {
-                setDialogState(() => errorText = 'ログインに失敗しました: $error');
-              } finally {
-                if (ctx.mounted) {
-                  setDialogState(() => submitting = false);
-                }
-              }
-            }
-
-            return AlertDialog(
-              title: const Text('管理者ログイン'),
-              content: SizedBox(
-                width: 360,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: emailController,
-                      enabled: !submitting,
-                      decoration: const InputDecoration(
-                        labelText: 'メールアドレス',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: passwordController,
-                      enabled: !submitting,
-                      decoration: const InputDecoration(
-                        labelText: 'パスワード',
-                        border: OutlineInputBorder(),
-                      ),
-                      obscureText: true,
-                      onSubmitted: (_) => submitting ? null : submit(),
-                    ),
-                    if (errorText != null) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        errorText!,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: submitting ? null : () => Navigator.pop(ctx, false),
-                  child: const Text('キャンセル'),
-                ),
-                FilledButton(
-                  onPressed: submitting ? null : submit,
-                  child: Text(submitting ? '確認中...' : 'ログイン'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) =>
+          _CheckoutAdminLoginDialog(adminAuthService: _adminAuthService),
     );
-
-    emailController.dispose();
-    passwordController.dispose();
     if (result != true || !mounted) return;
     await _refreshAdminState();
   }
@@ -228,7 +147,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   Text(_isAdmin ? '管理者モード有効' : '一般モード'),
                   const Spacer(),
                   TextButton.icon(
-                    onPressed: _adminBusy ? null : (_isAdmin ? _signOutAdmin : _loginAsAdmin),
+                    onPressed: _adminBusy
+                        ? null
+                        : (_isAdmin ? _signOutAdmin : _loginAsAdmin),
                     icon: Icon(_isAdmin ? Icons.logout : Icons.lock_open),
                     label: Text(_isAdmin ? '管理者ログアウト' : '管理者ログイン'),
                   ),
@@ -266,18 +187,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   child: _CheckDetail(
                     checkId: _selectedPerson!.openCheckId,
                     currency: _currency,
-                    onDeleteLine: _isAdmin && !_removingLine ? _confirmRemoveLine : null,
+                    onDeleteLine: _isAdmin && !_removingLine
+                        ? _confirmRemoveLine
+                        : null,
                   ),
                 )
               else
-                const Expanded(
-                  child: Center(child: Text('会計対象の人を選択してください')),
-                ),
+                const Expanded(child: Center(child: Text('会計対象の人を選択してください'))),
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _selectedPerson == null || !_isAdmin ? null : _finalize,
+                  onPressed: _selectedPerson == null || !_isAdmin
+                      ? null
+                      : _finalize,
                   child: const Text('会計確定（管理者のみ）'),
                 ),
               ),
@@ -336,7 +259,8 @@ class _CheckDetail extends StatelessWidget {
                             ? const Center(child: Text('注文履歴はまだありません'))
                             : ListView.separated(
                                 itemCount: items.length,
-                                separatorBuilder: (_, _) => const Divider(height: 1),
+                                separatorBuilder: (_, _) =>
+                                    const Divider(height: 1),
                                 itemBuilder: (context, index) {
                                   final item = items[index];
                                   return ListTile(
@@ -346,13 +270,22 @@ class _CheckDetail extends StatelessWidget {
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Text(currency.format(item.lineTotalTaxIncluded)),
+                                        Text(
+                                          currency.format(
+                                            item.lineTotalTaxIncluded,
+                                          ),
+                                        ),
                                         if (onDeleteLine != null)
                                           IconButton(
                                             tooltip: 'この明細を削除',
-                                            onPressed: () => onDeleteLine!(item),
-                                            icon: const Icon(Icons.delete_outline),
-                                            color: Theme.of(context).colorScheme.error,
+                                            onPressed: () =>
+                                                onDeleteLine!(item),
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                            ),
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.error,
                                           ),
                                       ],
                                     ),
@@ -395,34 +328,49 @@ class _TotalCard extends StatelessWidget {
     final total = isPaid && summary.finalAmount != null
         ? summary.finalAmount!
         : (isNormal ? breakdown.normalTotal : summary.totalTaxIncluded);
-    final timeCharge = isPaid ? (summary.timeChargeFinal ?? breakdown.timeCharge) : breakdown.timeCharge;
-    final separate = isPaid
-        ? (summary.separateFinal ?? breakdown.separateDrinksTotal)
-        : breakdown.separateDrinksTotal;
+    final timeCharge = isPaid
+        ? (summary.timeChargeFinal ?? breakdown.timeCharge)
+        : breakdown.timeCharge;
+    final merchandise = isPaid
+        ? (summary.merchandiseFinal ??
+              summary.separateFinal ??
+              breakdown.merchandiseTotal)
+        : breakdown.merchandiseTotal;
+    final foodAndBeverage = isPaid
+        ? (total - merchandise).clamp(0, total)
+        : breakdown.foodAndBeverageTotal;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(summary.customerNameSnapshot, style: Theme.of(context).textTheme.titleMedium),
-                Text('営業モード: ${isNormal ? '通常営業' : 'イベント営業'}'),
-                    Text('登録時間: ${DateFormat('yyyy/MM/dd HH:mm').format(summary.createdAt)}'),
-                    Text('内税10%: ${currency.format(summary.taxAmount)}'),
-                if (isNormal) ...[
-                  Text('通常飲料: ${currency.format(breakdown.mainDrinksTotal)}'),
-                      Text(
-                        '時間料金: ${currency.format(timeCharge)} '
-                        '(${currency.format(breakdown.timeChargePerPerson)} × ${breakdown.peopleCount}名)',
-                      ),
-                  Text('別会計: ${currency.format(separate)}'),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    summary.customerNameSnapshot,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Text('営業モード: ${isNormal ? '通常営業' : 'イベント営業'}'),
+                  Text(
+                    '登録時間: ${DateFormat('yyyy/MM/dd HH:mm').format(summary.createdAt)}',
+                  ),
+                  Text('内税10%: ${currency.format(summary.taxAmount)}'),
+                  Text('飲食: ${currency.format(foodAndBeverage)}'),
+                  Text('物販: ${currency.format(merchandise)}'),
+                  if (isNormal)
+                    Text(
+                      '時間料金(飲食に含む): ${currency.format(timeCharge)} '
+                      '(${currency.format(breakdown.timeChargePerPerson)} × ${breakdown.peopleCount}名)',
+                    ),
+                  if (isPaid) const Text('※会計確定済み（固定金額）'),
                 ],
-                if (isPaid) const Text('※会計確定済み（固定金額）'),
-              ],
+              ),
             ),
+            const SizedBox(width: 12),
             Text(
               currency.format(total),
               style: Theme.of(context).textTheme.headlineSmall,
@@ -430,6 +378,107 @@ class _TotalCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CheckoutAdminLoginDialog extends StatefulWidget {
+  const _CheckoutAdminLoginDialog({required this.adminAuthService});
+
+  final AdminAuthService adminAuthService;
+
+  @override
+  State<_CheckoutAdminLoginDialog> createState() =>
+      _CheckoutAdminLoginDialogState();
+}
+
+class _CheckoutAdminLoginDialogState extends State<_CheckoutAdminLoginDialog> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _submitting = false;
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _errorText = 'メールアドレスとパスワードを入力してください');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _errorText = null;
+    });
+    try {
+      await widget.adminAuthService.signInWithEmailPassword(
+        email: email,
+        password: password,
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _errorText = 'ログインに失敗しました: $error');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('管理者ログイン'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _emailController,
+              enabled: !_submitting,
+              decoration: const InputDecoration(
+                labelText: 'メールアドレス',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _passwordController,
+              enabled: !_submitting,
+              decoration: const InputDecoration(
+                labelText: 'パスワード',
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+              onSubmitted: (_) => _submitting ? null : _submit(),
+            ),
+            if (_errorText != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _errorText!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.pop(context, false),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          onPressed: _submitting ? null : _submit,
+          child: Text(_submitting ? '確認中...' : 'ログイン'),
+        ),
+      ],
     );
   }
 }

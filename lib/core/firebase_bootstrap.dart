@@ -29,7 +29,9 @@ Future<void> _activateAppCheckIfConfigured() async {
   final siteKey = AppConfig.appCheckWebRecaptchaSiteKey;
   if (siteKey.isEmpty) {
     if (kDebugMode) {
-      debugPrint('App Check skipped: APP_CHECK_WEB_RECAPTCHA_SITE_KEY is empty.');
+      debugPrint(
+        'App Check skipped: APP_CHECK_WEB_RECAPTCHA_SITE_KEY is empty.',
+      );
     }
     return;
   }
@@ -41,7 +43,9 @@ Future<void> _activateAppCheckIfConfigured() async {
 FirebaseOptions _firebaseOptions() {
   const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
   const appId = String.fromEnvironment('FIREBASE_APP_ID');
-  const messagingSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
+  const messagingSenderId = String.fromEnvironment(
+    'FIREBASE_MESSAGING_SENDER_ID',
+  );
   const projectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
   const authDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
   const storageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');

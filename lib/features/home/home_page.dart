@@ -4,12 +4,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/admin_auth_service.dart';
 import '../../core/business_mode.dart';
 import '../admin/menu_edit_page.dart';
+import '../admin/store_user_permissions_page.dart';
 import '../checkout/checkout_page.dart';
 import '../order/order_page.dart';
 import '../visit/visit_register_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  /// MaterialApp で `home` を使っているため、`'/'` と重複させないこと。
+  static const routeName = '/home';
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -24,9 +28,9 @@ class _HomePageState extends State<HomePage> {
       VisitRegisterPage.routeName,
     );
     if (!mounted || result == null || result is! String) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$result さんの伝票を作成しました')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$result さんの伝票を作成しました')));
   }
 
   Future<void> _openMenuEditWithAdminCheck() async {
@@ -54,12 +58,37 @@ class _HomePageState extends State<HomePage> {
     await Navigator.pushNamed(context, MenuEditPage.routeName);
   }
 
+  Future<void> _openStoreUserPermissionsWithAdminCheck() async {
+    final alreadyAdmin = await _adminAuthService.isCurrentUserAdmin();
+    if (!mounted) return;
+    if (alreadyAdmin) {
+      await Navigator.pushNamed(context, StoreUserPermissionsPage.routeName);
+      return;
+    }
+
+    final loggedIn = await showDialog<bool>(
+      context: context,
+      builder: (_) => _AdminLoginDialog(adminAuthService: _adminAuthService),
+    );
+    if (!mounted || loggedIn != true) return;
+
+    final nowAdmin = await _adminAuthService.isCurrentUserAdmin();
+    if (!mounted) return;
+    if (!nowAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('管理者権限がありません。admins設定を確認してください')),
+      );
+      return;
+    }
+    await Navigator.pushNamed(context, StoreUserPermissionsPage.routeName);
+  }
+
   Future<void> _logoutToAnonymous() async {
     await _adminAuthService.signOut();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('ログアウトしました')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('ログアウトしました')));
   }
 
   @override
@@ -99,7 +128,7 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -139,7 +168,6 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
               const SizedBox(height: 12),
-              const Spacer(),
               _NavButton(
                 label: '来店登録',
                 icon: Icons.person_add_alt_1,
@@ -155,13 +183,16 @@ class _HomePageState extends State<HomePage> {
               _NavButton(
                 label: '会計',
                 icon: Icons.receipt_long,
-                onTap: () => Navigator.pushNamed(context, CheckoutPage.routeName),
+                onTap: () =>
+                    Navigator.pushNamed(context, CheckoutPage.routeName),
               ),
               const SizedBox(height: 24),
-              _MenuEditEntryButton(
-                onTap: _openMenuEditWithAdminCheck,
+              _MenuEditEntryButton(onTap: _openMenuEditWithAdminCheck),
+              const SizedBox(height: 12),
+              _UserPermissionsEntryButton(
+                onTap: _openStoreUserPermissionsWithAdminCheck,
               ),
-              const Spacer(),
+              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -296,9 +327,44 @@ class _MenuEditEntryButton extends StatelessWidget {
         label: Text(
           'メニュー編集',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: onFill,
-                fontWeight: FontWeight.w600,
-              ),
+            color: onFill,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UserPermissionsEntryButton extends StatelessWidget {
+  const _UserPermissionsEntryButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const fill = Color(0xFF5B21B6);
+    const onFill = Color(0xFFFAFAFA);
+    return SizedBox(
+      height: 60,
+      child: FilledButton.icon(
+        onPressed: onTap,
+        style: FilledButton.styleFrom(
+          backgroundColor: fill,
+          foregroundColor: onFill,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        ),
+        icon: const Icon(Icons.group_outlined, size: 24),
+        label: Text(
+          'ユーザー権限（会計／経費）',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: onFill,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
@@ -338,10 +404,10 @@ class _NavButton extends StatelessWidget {
         label: Text(
           label,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: onFill,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.3,
-              ),
+            color: onFill,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
+          ),
         ),
       ),
     );

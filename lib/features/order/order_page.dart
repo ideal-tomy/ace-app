@@ -25,10 +25,15 @@ class OrderPage extends StatefulWidget {
 
 class _OrderPageState extends State<OrderPage> {
   static const _tequilaOthersCategory = 'TEQUILA_OTHERS';
+  static const _foodDailyCategory = 'FOOD_DAILY';
   final _checkRepository = CheckRepository();
   final _menuRepository = MenuRepository();
   final _adminAuthService = AdminAuthService();
-  final _currency = NumberFormat.currency(locale: 'ja_JP', symbol: '¥', decimalDigits: 0);
+  final _currency = NumberFormat.currency(
+    locale: 'ja_JP',
+    symbol: '¥',
+    decimalDigits: 0,
+  );
   PersonOption? _selectedPerson;
   String? _activeCategory;
   bool _seeding = false;
@@ -70,15 +75,15 @@ class _OrderPageState extends State<OrderPage> {
         lineTotalTaxIncluded: item.lineTotalTaxIncluded,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('明細を削除しました')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('明細を削除しました')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('削除に失敗しました: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
       }
     } finally {
       if (mounted) setState(() => _removingLine = false);
@@ -101,6 +106,46 @@ class _OrderPageState extends State<OrderPage> {
     });
   }
 
+  Future<void> _openFoodOrderDialog() async {
+    if (_selectedPerson == null) return;
+    final form = await showDialog<_CustomFoodOrderForm>(
+      context: context,
+      builder: (_) => const _CustomFoodOrderDialog(),
+    );
+    if (form == null) return;
+    final menu = MenuItem(
+      id: 'food-${DateTime.now().microsecondsSinceEpoch}',
+      name: form.name,
+      category: _foodDailyCategory,
+      priceTaxIncluded: form.priceTaxIncluded,
+      isActive: true,
+      sortOrder: 9999,
+    );
+    setState(() {
+      _draftOrders[menu.id] = _DraftOrderLine(menu: menu, qty: 1);
+    });
+  }
+
+  Future<void> _openDartsGoodsDialog() async {
+    if (_selectedPerson == null) return;
+    final form = await showDialog<_DartsGoodsOrderForm>(
+      context: context,
+      builder: (_) => const _DartsGoodsOrderDialog(),
+    );
+    if (form == null) return;
+    final menu = MenuItem(
+      id: 'goods-${DateTime.now().microsecondsSinceEpoch}',
+      name: 'ダーツグッズ（${form.typeLabel}）',
+      category: form.categoryKey,
+      priceTaxIncluded: form.priceTaxIncluded,
+      isActive: true,
+      sortOrder: 9999,
+    );
+    setState(() {
+      _draftOrders[menu.id] = _DraftOrderLine(menu: menu, qty: 1);
+    });
+  }
+
   Future<void> _submitDraftOrder() async {
     final person = _selectedPerson;
     if (person == null || _draftOrders.isEmpty || _submittingDraft) return;
@@ -120,9 +165,9 @@ class _OrderPageState extends State<OrderPage> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('注文確定に失敗しました: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('注文確定に失敗しました: $error')));
       }
     } finally {
       if (mounted) setState(() => _submittingDraft = false);
@@ -146,7 +191,9 @@ class _OrderPageState extends State<OrderPage> {
                       dense: true,
                       title: Text(line.menu.name),
                       subtitle: Text('数量 ${line.qty}'),
-                      trailing: Text(_currency.format(line.menu.priceTaxIncluded * line.qty)),
+                      trailing: Text(
+                        _currency.format(line.menu.priceTaxIncluded * line.qty),
+                      ),
                     ),
                   )
                   .toList(),
@@ -171,10 +218,11 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   int get _draftTotal => _draftOrders.values.fold(
-        0,
-        (sum, line) => sum + (line.menu.priceTaxIncluded * line.qty),
-      );
-  int get _draftCount => _draftOrders.values.fold(0, (sum, line) => sum + line.qty);
+    0,
+    (sum, line) => sum + (line.menu.priceTaxIncluded * line.qty),
+  );
+  int get _draftCount =>
+      _draftOrders.values.fold(0, (sum, line) => sum + line.qty);
 
   String _normalModeCategoryKey(MenuItem item) {
     if (item.category == 'TEQUILA' || item.category == 'OTHERS') {
@@ -221,7 +269,9 @@ class _OrderPageState extends State<OrderPage> {
               const SizedBox(height: 12),
               if (_selectedPerson != null) ...[
                 StreamBuilder<List<CheckItem>>(
-                  stream: _checkRepository.streamCheckItems(_selectedPerson!.openCheckId),
+                  stream: _checkRepository.streamCheckItems(
+                    _selectedPerson!.openCheckId,
+                  ),
                   builder: (context, snap) {
                     if (snap.hasError) {
                       return Center(child: Text('明細: ${snap.error}'));
@@ -233,7 +283,8 @@ class _OrderPageState extends State<OrderPage> {
                       );
                     }
                     final registered = snap.data!;
-                    final hasAnyOrders = registered.isNotEmpty || _draftOrders.isNotEmpty;
+                    final hasAnyOrders =
+                        registered.isNotEmpty || _draftOrders.isNotEmpty;
                     if (!hasAnyOrders) {
                       return const SizedBox.shrink();
                     }
@@ -263,7 +314,9 @@ class _OrderPageState extends State<OrderPage> {
                                     ),
                                     subtitle: Text('数量 ${line.qty} ・ 未確定'),
                                     trailing: Text(
-                                      _currency.format(line.menu.priceTaxIncluded * line.qty),
+                                      _currency.format(
+                                        line.menu.priceTaxIncluded * line.qty,
+                                      ),
                                       style: const TextStyle(fontSize: 13),
                                     ),
                                   ),
@@ -276,7 +329,8 @@ class _OrderPageState extends State<OrderPage> {
                                     removingLine: _removingLine,
                                     onDelete: _confirmRemoveCheckItem,
                                   ),
-                                  if (i != registered.length - 1) const Divider(height: 1),
+                                  if (i != registered.length - 1)
+                                    const Divider(height: 1),
                                 ],
                               ],
                             ),
@@ -325,26 +379,38 @@ class _OrderPageState extends State<OrderPage> {
                                   onPressed: (_seeding || !isAdmin)
                                       ? null
                                       : () async {
-                                          final messenger = ScaffoldMessenger.of(context);
+                                          final messenger =
+                                              ScaffoldMessenger.of(context);
                                           setState(() => _seeding = true);
                                           try {
-                                            await _menuRepository.seedMenusFromAssetIfEmpty();
+                                            await _menuRepository
+                                                .seedMenusFromAssetIfEmpty();
                                             if (mounted) {
                                               messenger.showSnackBar(
-                                                const SnackBar(content: Text('初期メニューを登録しました')),
+                                                const SnackBar(
+                                                  content: Text(
+                                                    '初期メニューを登録しました',
+                                                  ),
+                                                ),
                                               );
                                             }
                                           } catch (error) {
                                             if (mounted) {
                                               messenger.showSnackBar(
-                                                SnackBar(content: Text('登録失敗: $error')),
+                                                SnackBar(
+                                                  content: Text('登録失敗: $error'),
+                                                ),
                                               );
                                             }
                                           } finally {
-                                            if (mounted) setState(() => _seeding = false);
+                                            if (mounted) {
+                                              setState(() => _seeding = false);
+                                            }
                                           }
                                         },
-                                  child: Text(_seeding ? '登録中...' : '初期メニューを登録'),
+                                  child: Text(
+                                    _seeding ? '登録中...' : '初期メニューを登録',
+                                  ),
                                 ),
                                 if (!isAdmin) ...[
                                   const SizedBox(height: 8),
@@ -367,12 +433,16 @@ class _OrderPageState extends State<OrderPage> {
                     return StreamBuilder<CheckSummary?>(
                       stream: selectedPerson == null
                           ? null
-                          : _checkRepository.streamCheckSummary(selectedPerson.openCheckId),
+                          : _checkRepository.streamCheckSummary(
+                              selectedPerson.openCheckId,
+                            ),
                       builder: (context, checkSummarySnapshot) {
-                        final checkMode = checkSummarySnapshot.data?.billingMode;
+                        final checkMode =
+                            checkSummarySnapshot.data?.billingMode;
                         final globalMode = BusinessModeState.notifier.value;
                         final isNormalCheck =
-                            checkMode == BusinessMode.normal && globalMode == BusinessMode.normal;
+                            checkMode == BusinessMode.normal &&
+                            globalMode == BusinessMode.normal;
                         final sourceMenus = isNormalCheck
                             ? menus.where(isSeparateAccountingMenu).toList()
                             : menus;
@@ -387,27 +457,80 @@ class _OrderPageState extends State<OrderPage> {
                           );
                         }
 
-                        final categories = sourceMenus
-                            .map((m) => isNormalCheck ? _normalModeCategoryKey(m) : m.category)
-                            .toSet()
-                            .toList()
-                          ..sort((a, b) {
-                            if (a == _tequilaOthersCategory) {
-                              return b == _tequilaOthersCategory ? 0 : 1;
-                            }
-                            if (b == _tequilaOthersCategory) return -1;
-                            return MenuCategoryCatalog.compareKeys(a, b);
-                          });
+                        final categories =
+                            sourceMenus
+                                .map(
+                                  (m) => isNormalCheck
+                                      ? _normalModeCategoryKey(m)
+                                      : m.category,
+                                )
+                                .toSet()
+                                .toList()
+                              ..sort((a, b) {
+                                if (a == _tequilaOthersCategory) {
+                                  return b == _tequilaOthersCategory ? 0 : 1;
+                                }
+                                if (b == _tequilaOthersCategory) return -1;
+                                return MenuCategoryCatalog.compareKeys(a, b);
+                              });
                         if (!categories.contains(_activeCategory)) {
                           _activeCategory = categories.first;
                         }
                         final shown = sourceMenus.where((m) {
-                          if (!isNormalCheck) return m.category == _activeCategory;
+                          if (!isNormalCheck) {
+                            return m.category == _activeCategory;
+                          }
                           return _normalModeCategoryKey(m) == _activeCategory;
                         }).toList();
 
                         return Column(
                           children: [
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      '追加オーダー',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleSmall,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: FilledButton.icon(
+                                            onPressed: _selectedPerson == null
+                                                ? null
+                                                : _openFoodOrderDialog,
+                                            icon: const Icon(
+                                              Icons.restaurant_menu,
+                                            ),
+                                            label: const Text('フード追加'),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: FilledButton.icon(
+                                            onPressed: _selectedPerson == null
+                                                ? null
+                                                : _openDartsGoodsDialog,
+                                            icon: const Icon(
+                                              Icons.shopping_bag_outlined,
+                                            ),
+                                            label: const Text('グッズ販売追加'),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
                             if (isNormalCheck)
                               Align(
                                 alignment: Alignment.centerLeft,
@@ -422,7 +545,8 @@ class _OrderPageState extends State<OrderPage> {
                               child: ListView.separated(
                                 scrollDirection: Axis.horizontal,
                                 itemCount: categories.length,
-                                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(width: 8),
                                 itemBuilder: (context, index) {
                                   final cat = categories[index];
                                   final selected = cat == _activeCategory;
@@ -432,7 +556,8 @@ class _OrderPageState extends State<OrderPage> {
                                   return ChoiceChip(
                                     label: Text(categoryLabel),
                                     selected: selected,
-                                    onSelected: (_) => setState(() => _activeCategory = cat),
+                                    onSelected: (_) =>
+                                        setState(() => _activeCategory = cat),
                                   );
                                 },
                               ),
@@ -441,22 +566,34 @@ class _OrderPageState extends State<OrderPage> {
                             Expanded(
                               child: GridView.builder(
                                 itemCount: shown.length,
-                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  mainAxisSpacing: 8,
-                                  crossAxisSpacing: 8,
-                                  childAspectRatio: 2.2,
-                                ),
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 2,
+                                      mainAxisSpacing: 8,
+                                      crossAxisSpacing: 8,
+                                      childAspectRatio: 2.2,
+                                    ),
                                 itemBuilder: (context, index) {
                                   final item = shown[index];
                                   return FilledButton.tonal(
-                                    onPressed: _selectedPerson == null ? null : () => _addDraftItem(item),
+                                    onPressed: _selectedPerson == null
+                                        ? null
+                                        : () => _addDraftItem(item),
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
-                                        Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        Text(
+                                          item.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                         const SizedBox(height: 4),
-                                        Text(_currency.format(item.priceTaxIncluded)),
+                                        Text(
+                                          _currency.format(
+                                            item.priceTaxIncluded,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   );
@@ -477,7 +614,9 @@ class _OrderPageState extends State<OrderPage> {
                     title: Text('仮注文 $_draftCount 点'),
                     subtitle: Text(_currency.format(_draftTotal)),
                     trailing: FilledButton(
-                      onPressed: _submittingDraft ? null : _openDraftConfirmDialog,
+                      onPressed: _submittingDraft
+                          ? null
+                          : _openDraftConfirmDialog,
                       child: Text(_submittingDraft ? '確定中...' : '注文内容を確認'),
                     ),
                   ),
@@ -519,7 +658,11 @@ class _RegisteredOrderLineTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       dense: true,
-      title: Text(item.menuNameSnapshot, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: Text(
+        item.menuNameSnapshot,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       subtitle: Text('数量 ${item.qty}'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -558,15 +701,256 @@ class _QtyDialogState extends State<_QtyDialog> {
       content: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          IconButton(onPressed: qty > 1 ? () => setState(() => qty--) : null, icon: const Icon(Icons.remove)),
+          IconButton(
+            onPressed: qty > 1 ? () => setState(() => qty--) : null,
+            icon: const Icon(Icons.remove),
+          ),
           Text('$qty', style: Theme.of(context).textTheme.headlineSmall),
-          IconButton(onPressed: () => setState(() => qty++), icon: const Icon(Icons.add)),
+          IconButton(
+            onPressed: () => setState(() => qty++),
+            icon: const Icon(Icons.add),
+          ),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
-        FilledButton(onPressed: () => Navigator.pop(context, qty), child: const Text('追加')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, qty),
+          child: const Text('追加'),
+        ),
       ],
     );
   }
+}
+
+class _CustomFoodOrderForm {
+  const _CustomFoodOrderForm({
+    required this.name,
+    required this.priceTaxIncluded,
+  });
+
+  final String name;
+  final int priceTaxIncluded;
+}
+
+class _CustomFoodOrderDialog extends StatefulWidget {
+  const _CustomFoodOrderDialog();
+
+  @override
+  State<_CustomFoodOrderDialog> createState() => _CustomFoodOrderDialogState();
+}
+
+class _CustomFoodOrderDialogState extends State<_CustomFoodOrderDialog> {
+  final _nameController = TextEditingController();
+  final _priceController = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _nameController.text.trim();
+    final price = int.tryParse(
+      _priceController.text.trim().replaceAll(',', ''),
+    );
+    if (name.isEmpty) {
+      setState(() => _error = 'フード名を入力してください');
+      return;
+    }
+    if (price == null || price < 0) {
+      setState(() => _error = '金額を正しく入力してください');
+      return;
+    }
+    Navigator.pop(
+      context,
+      _CustomFoodOrderForm(name: name, priceTaxIncluded: price),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('フード追加'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'オーダー名',
+                hintText: '例）本日のおすすめ',
+                border: OutlineInputBorder(),
+              ),
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _priceController,
+              decoration: const InputDecoration(
+                labelText: '金額（税込）',
+                prefixText: '¥',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('仮注文に追加')),
+      ],
+    );
+  }
+}
+
+class _DartsGoodsOrderForm {
+  const _DartsGoodsOrderForm({
+    required this.typeLabel,
+    required this.categoryKey,
+    required this.priceTaxIncluded,
+  });
+
+  final String typeLabel;
+  final String categoryKey;
+  final int priceTaxIncluded;
+}
+
+class _DartsGoodsOrderDialog extends StatefulWidget {
+  const _DartsGoodsOrderDialog();
+
+  @override
+  State<_DartsGoodsOrderDialog> createState() => _DartsGoodsOrderDialogState();
+}
+
+class _DartsGoodsOrderDialogState extends State<_DartsGoodsOrderDialog> {
+  static const _goodsTypes = <_DartsGoodsType>[
+    _DartsGoodsType(label: 'バレル', categoryKey: 'DARTS_BARREL'),
+    _DartsGoodsType(label: 'フライト', categoryKey: 'DARTS_FLIGHT'),
+    _DartsGoodsType(label: 'シャフト', categoryKey: 'DARTS_SHAFT'),
+    _DartsGoodsType(label: 'チップ', categoryKey: 'DARTS_TIP'),
+    _DartsGoodsType(label: 'その他', categoryKey: 'DARTS_OTHER'),
+  ];
+
+  _DartsGoodsType _selectedType = _goodsTypes.first;
+  final _priceController = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final price = int.tryParse(
+      _priceController.text.trim().replaceAll(',', ''),
+    );
+    if (price == null || price < 0) {
+      setState(() => _error = '金額を正しく入力してください');
+      return;
+    }
+    Navigator.pop(
+      context,
+      _DartsGoodsOrderForm(
+        typeLabel: _selectedType.label,
+        categoryKey: _selectedType.categoryKey,
+        priceTaxIncluded: price,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('グッズ販売追加'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InputDecorator(
+              decoration: const InputDecoration(
+                labelText: '種類',
+                border: OutlineInputBorder(),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<_DartsGoodsType>(
+                  isExpanded: true,
+                  value: _selectedType,
+                  items: _goodsTypes
+                      .map(
+                        (type) => DropdownMenuItem<_DartsGoodsType>(
+                          value: type,
+                          child: Text(type.label),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _selectedType = value);
+                    }
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _priceController,
+              decoration: const InputDecoration(
+                labelText: '金額（税込）',
+                prefixText: '¥',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('仮注文に追加')),
+      ],
+    );
+  }
+}
+
+class _DartsGoodsType {
+  const _DartsGoodsType({required this.label, required this.categoryKey});
+
+  final String label;
+  final String categoryKey;
 }

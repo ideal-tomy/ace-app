@@ -8,7 +8,25 @@ service cloud.firestore {
 
     function isStoreAdmin(storeId) {
       return isSignedIn() &&
-        exists(/databases/$(database)/documents/stores/$(storeId)/admins/$(request.auth.uid));
+        request.auth.token.email != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
+    }
+
+    function hasStoreRole(storeId, role) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/stores/$(storeId)/users/$(request.auth.uid)) &&
+        (
+          role in get(/databases/$(database)/documents/stores/$(storeId)/users/$(request.auth.uid)).data.moduleRoles ||
+          'both' in get(/databases/$(database)/documents/stores/$(storeId)/users/$(request.auth.uid)).data.moduleRoles
+        );
+    }
+
+    function canAccounting(storeId) {
+      return isStoreAdmin(storeId) || hasStoreRole(storeId, 'accounting');
+    }
+
+    function canExpense(storeId) {
+      return isStoreAdmin(storeId) || hasStoreRole(storeId, 'expense');
     }
 
     match /stores/{storeId} {
@@ -18,6 +36,11 @@ service cloud.firestore {
 
       match /admins/{adminUid} {
         allow read: if isStoreAdmin(storeId);
+        allow create, update, delete: if isStoreAdmin(storeId);
+      }
+
+      match /users/{uid} {
+        allow read: if isStoreAdmin(storeId) || (isSignedIn() && request.auth.uid == uid);
         allow create, update, delete: if isStoreAdmin(storeId);
       }
 
@@ -31,10 +54,10 @@ service cloud.firestore {
       }
 
       match /checks/{checkId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn() &&
+        allow read: if canAccounting(storeId);
+        allow create: if canAccounting(storeId) &&
           request.resource.data.status == 'open';
-        allow update: if isSignedIn() && (
+        allow update: if canAccounting(storeId) && (
           // 通常スタッフは open の伝票を open のまま更新可能（注文追加/取消の合計更新など）。
           (
             resource.data.status == 'open' &&
@@ -46,9 +69,24 @@ service cloud.firestore {
         allow delete: if isStoreAdmin(storeId);
 
         match /items/{itemId} {
-          allow read, write: if isSignedIn();
+          allow read, write: if canAccounting(storeId);
         }
       }
+
+      match /accounting_entries/{entryId} {
+        allow read, create, update: if canAccounting(storeId);
+        allow delete: if isStoreAdmin(storeId);
+      }
+
+      match /expense_entries/{entryId} {
+        allow read, create, update: if canExpense(storeId);
+        allow delete: if isStoreAdmin(storeId);
+      }
+    }
+
+    match /admins/{adminEmail} {
+      allow read: if isSignedIn() && request.auth.token.email == adminEmail;
+      allow create, update, delete: if false;
     }
 
     // 既存のトップレベル構造を閉じる（移行後の誤アクセス防止）。

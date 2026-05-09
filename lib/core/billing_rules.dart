@@ -1,23 +1,28 @@
+import 'business_mode.dart';
 import '../models/check_item.dart';
 import '../models/check_summary.dart';
 import '../models/menu_item.dart';
 
 class BillingBreakdown {
   const BillingBreakdown({
-    required this.mainDrinksTotal,
-    required this.separateDrinksTotal,
+    required this.foodAndBeverageTotal,
+    required this.merchandiseTotal,
     required this.timeCharge,
     required this.timeChargePerPerson,
     required this.peopleCount,
   });
 
-  final int mainDrinksTotal;
-  final int separateDrinksTotal;
+  final int foodAndBeverageTotal;
+  final int merchandiseTotal;
   final int timeCharge;
   final int timeChargePerPerson;
   final int peopleCount;
 
-  int get normalTotal => mainDrinksTotal + separateDrinksTotal + timeCharge;
+  int get normalTotal => foodAndBeverageTotal + merchandiseTotal;
+
+  // Backward-compatible aliases for existing UI references.
+  int get mainDrinksTotal => foodAndBeverageTotal;
+  int get separateDrinksTotal => merchandiseTotal;
 }
 
 BillingBreakdown buildBillingBreakdown({
@@ -25,24 +30,26 @@ BillingBreakdown buildBillingBreakdown({
   required List<CheckItem> items,
   required DateTime now,
 }) {
-  var separate = 0;
+  var merchandise = 0;
   for (final item in items) {
-    if (isSeparateAccountingByNameAndCategory(
+    if (isMerchandiseByNameAndCategory(
       name: item.menuNameSnapshot,
       category: item.menuCategorySnapshot,
     )) {
-      separate += item.lineTotalTaxIncluded;
+      merchandise += item.lineTotalTaxIncluded;
     }
   }
   final allItemsTotal = summary.totalTaxIncluded;
-  final main = (allItemsTotal - separate).clamp(0, allItemsTotal);
-  final elapsed = now.difference(summary.createdAt);
+  final foodBase = (allItemsTotal - merchandise).clamp(0, allItemsTotal);
   final peopleCount = summary.peopleCount <= 0 ? 1 : summary.peopleCount;
-  final chargePerPerson = calcTimeCharge(elapsed);
+  final isNormal = summary.billingMode == BusinessMode.normal;
+  final elapsed = now.difference(summary.createdAt);
+  final chargePerPerson = isNormal ? calcTimeCharge(elapsed) : 0;
   final charge = chargePerPerson * peopleCount;
+  final foodWithTimeCharge = foodBase + charge;
   return BillingBreakdown(
-    mainDrinksTotal: main,
-    separateDrinksTotal: separate,
+    foodAndBeverageTotal: foodWithTimeCharge,
+    merchandiseTotal: merchandise,
     timeCharge: charge,
     timeChargePerPerson: chargePerPerson,
     peopleCount: peopleCount,
@@ -61,6 +68,30 @@ bool isSeparateAccountingCheckItem(CheckItem item) {
     name: item.menuNameSnapshot,
     category: item.menuCategorySnapshot,
   );
+}
+
+bool isMerchandiseByNameAndCategory({
+  required String name,
+  required String category,
+}) {
+  final normalizedCategory = category.toUpperCase();
+  final normalizedName = name.toLowerCase();
+  if (isMerchandiseCategory(normalizedCategory)) return true;
+  return normalizedName.contains('ダーツグッズ') ||
+      normalizedName.contains('バレル') ||
+      normalizedName.contains('フライト') ||
+      normalizedName.contains('シャフト') ||
+      normalizedName.contains('チップ');
+}
+
+bool isMerchandiseCategory(String category) {
+  final normalized = category.toUpperCase();
+  return normalized == 'DARTS_GOODS' ||
+      normalized == 'DARTS_BARREL' ||
+      normalized == 'DARTS_FLIGHT' ||
+      normalized == 'DARTS_SHAFT' ||
+      normalized == 'DARTS_TIP' ||
+      normalized == 'DARTS_OTHER';
 }
 
 bool isSeparateAccountingByNameAndCategory({

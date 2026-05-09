@@ -67,19 +67,21 @@ class _MenuEditPageState extends State<MenuEditPage> {
   }
 
   Future<void> _runRegister() async {
-    final price = int.tryParse(_priceController.text.trim().replaceAll(',', ''));
+    final price = int.tryParse(
+      _priceController.text.trim().replaceAll(',', ''),
+    );
     if (price == null || price < 0) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('金額を正しく入力してください（0以上の整数）')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('金額を正しく入力してください（0以上の整数）')));
       return;
     }
     if (_nameController.text.trim().isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('メニュー名を入力してください')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('メニュー名を入力してください')));
       return;
     }
     setState(() => _saving = true);
@@ -92,14 +94,14 @@ class _MenuEditPageState extends State<MenuEditPage> {
       if (!mounted) return;
       _nameController.clear();
       _priceController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('メニューを登録しました')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('メニューを登録しました')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('登録に失敗しました: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('登録に失敗しました: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -107,9 +109,9 @@ class _MenuEditPageState extends State<MenuEditPage> {
 
   Future<void> _confirmAndDelete() async {
     if (_removeMenuId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('削除するメニューを選んでください')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('削除するメニューを選んでください')));
       return;
     }
     final ok = await showDialog<bool>(
@@ -135,14 +137,14 @@ class _MenuEditPageState extends State<MenuEditPage> {
       await _repo.deleteMenu(_removeMenuId!);
       if (!mounted) return;
       setState(() => _removeMenuId = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('メニューを削除しました')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('メニューを削除しました')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('削除に失敗しました: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -151,15 +153,11 @@ class _MenuEditPageState extends State<MenuEditPage> {
   @override
   Widget build(BuildContext context) {
     if (_checkingAdmin) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (!_isAdmin) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('メニュー編集'),
-        ),
+        appBar: AppBar(title: const Text('メニュー編集')),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -169,10 +167,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    'この画面は管理者のみ利用できます。',
-                    textAlign: TextAlign.center,
-                  ),
+                  const Text('この画面は管理者のみ利用できます。', textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     onPressed: _loginAsAdmin,
@@ -187,9 +182,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
       );
     }
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('メニュー編集'),
-      ),
+      appBar: AppBar(title: const Text('メニュー編集')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -219,7 +212,9 @@ class _MenuEditPageState extends State<MenuEditPage> {
               ),
               const SizedBox(height: 20),
               Expanded(
-                child: _mode == _EditMode.register ? _buildRegister() : _buildRemove(),
+                child: _mode == _EditMode.register
+                    ? _buildRegister()
+                    : _buildRemove(),
               ),
             ],
           ),
@@ -293,7 +288,10 @@ class _MenuEditPageState extends State<MenuEditPage> {
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Icon(Icons.save),
           label: Text(_saving ? '登録中…' : '登録を実行'),
@@ -365,7 +363,10 @@ class _MenuEditPageState extends State<MenuEditPage> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Icon(Icons.delete_forever),
               label: Text(_saving ? '処理中…' : '削除を実行'),

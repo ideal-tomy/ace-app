@@ -146,6 +146,47 @@ class CheckRepository {
     );
   }
 
+  Future<void> updateOrderItemQty({
+    required String checkId,
+    required CheckItem item,
+    required int newQty,
+  }) async {
+    if (newQty <= 0) {
+      throw ArgumentError.value(newQty, 'newQty', '数量は1以上にしてください');
+    }
+    if (newQty == item.qty) return;
+
+    final docRef = _checks.doc(checkId);
+    final itemRef = docRef.collection('items').doc(item.id);
+    final newLineTotal = item.unitPriceTaxIncluded * newQty;
+    final delta = newLineTotal - item.lineTotalTaxIncluded;
+
+    await _firestore.runTransaction((txn) async {
+      final snap = await txn.get(docRef);
+      if (!snap.exists) {
+        throw StateError('伝票が存在しません。');
+      }
+      final data = snap.data()!;
+      if ((data['status'] as String? ?? 'open') != 'open') {
+        throw StateError('会計確定済みの伝票は明細を変更できません。');
+      }
+
+      final currentTotal = (data['totalTaxIncluded'] as num?)?.toInt() ?? 0;
+      final newTotal = currentTotal + delta;
+      final taxAmount = (newTotal * 10 / 110).floor();
+
+      txn.update(itemRef, {
+        'qty': newQty,
+        'lineTotalTaxIncluded': newLineTotal,
+      });
+      txn.update(docRef, {
+        'subtotalTaxIncluded': newTotal,
+        'taxAmount': taxAmount,
+        'totalTaxIncluded': newTotal,
+      });
+    });
+  }
+
   Future<void> removeOrderItem({
     required String checkId,
     required String itemId,

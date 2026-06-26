@@ -6,10 +6,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isEmailSignedInUser() {
+      return isSignedIn() && request.auth.token.email != null;
+    }
+
     function isStoreAdmin(storeId) {
-      return isSignedIn() &&
-        request.auth.token.email != null &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
+      return isEmailSignedInUser() ||
+        (
+          isSignedIn() &&
+          request.auth.token.email != null &&
+          exists(/databases/$(database)/documents/admins/$(request.auth.token.email))
+        );
     }
 
     function hasStoreRole(storeId, role) {

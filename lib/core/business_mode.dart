@@ -1,19 +1,19 @@
-import 'package:flutter/foundation.dart';
-
 enum BusinessMode { event, normal }
-
-class BusinessModeState {
-  BusinessModeState._();
-
-  static final ValueNotifier<BusinessMode> notifier = ValueNotifier(
-    BusinessMode.event,
-  );
-}
 
 extension BusinessModeCodec on BusinessMode {
   String get firestoreValue => switch (this) {
     BusinessMode.event => 'event',
     BusinessMode.normal => 'normal',
+  };
+
+  String get label => switch (this) {
+    BusinessMode.event => 'イベント営業',
+    BusinessMode.normal => '通常営業',
+  };
+
+  String get description => switch (this) {
+    BusinessMode.event => '注文制（時間料金なし）',
+    BusinessMode.normal => '時間制（例外ドリンクのみ追加注文）',
   };
 }
 

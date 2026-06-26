@@ -18,14 +18,7 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
   final _customerRepository = CustomerRepository();
   final _checkRepository = CheckRepository();
   int _peopleCount = 1;
-  late BusinessMode _selectedBusinessMode;
   bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedBusinessMode = BusinessModeState.notifier.value;
-  }
 
   @override
   void dispose() {
@@ -41,13 +34,23 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
       ).showSnackBar(const SnackBar(content: Text('名前またはあだ名を入力してください')));
       return;
     }
+
+    final billingMode = await showDialog<BusinessMode>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _BusinessModeConfirmDialog(
+        customerName: name,
+        peopleCount: _peopleCount,
+      ),
+    );
+    if (billingMode == null || !mounted) return;
+
     setState(() => _saving = true);
     try {
       await _customerRepository.createCustomerIfNeeded(name);
-      BusinessModeState.notifier.value = _selectedBusinessMode;
       await _checkRepository.createOpenCheck(
         customerName: name,
-        billingMode: _selectedBusinessMode,
+        billingMode: billingMode,
         peopleCount: _peopleCount,
       );
       if (mounted) {
@@ -129,33 +132,6 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
                         : () => setState(() => _peopleCount++),
                     icon: const Icon(Icons.add_circle_outline),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<BusinessMode>(
-                      initialValue: _selectedBusinessMode,
-                      decoration: const InputDecoration(
-                        labelText: '営業モード',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: BusinessMode.event,
-                          child: Text('イベント営業'),
-                        ),
-                        DropdownMenuItem(
-                          value: BusinessMode.normal,
-                          child: Text('通常営業'),
-                        ),
-                      ],
-                      onChanged: _saving
-                          ? null
-                          : (value) {
-                              if (value == null) return;
-                              setState(() => _selectedBusinessMode = value);
-                            },
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -164,6 +140,123 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
                 child: FilledButton(
                   onPressed: _saving ? null : _register,
                   child: Text(_saving ? '登録中...' : '来店登録して伝票作成'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BusinessModeConfirmDialog extends StatefulWidget {
+  const _BusinessModeConfirmDialog({
+    required this.customerName,
+    required this.peopleCount,
+  });
+
+  final String customerName;
+  final int peopleCount;
+
+  @override
+  State<_BusinessModeConfirmDialog> createState() =>
+      _BusinessModeConfirmDialogState();
+}
+
+class _BusinessModeConfirmDialogState extends State<_BusinessModeConfirmDialog> {
+  BusinessMode? _selectedMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('営業モードを選択'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '${widget.customerName} さん（${widget.peopleCount}名）の登録方法を選んでください',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            _ModeOptionTile(
+              mode: BusinessMode.event,
+              selected: _selectedMode == BusinessMode.event,
+              onTap: () => setState(() => _selectedMode = BusinessMode.event),
+            ),
+            const SizedBox(height: 8),
+            _ModeOptionTile(
+              mode: BusinessMode.normal,
+              selected: _selectedMode == BusinessMode.normal,
+              onTap: () => setState(() => _selectedMode = BusinessMode.normal),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          onPressed: _selectedMode == null
+              ? null
+              : () => Navigator.pop(context, _selectedMode),
+          child: const Text('登録する'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ModeOptionTile extends StatelessWidget {
+  const _ModeOptionTile({
+    required this.mode,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final BusinessMode mode;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? Theme.of(context).colorScheme.primaryContainer
+          : Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: selected
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      mode.label,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    Text(
+                      mode.description,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
               ),
             ],

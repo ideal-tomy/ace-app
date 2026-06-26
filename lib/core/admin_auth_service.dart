@@ -21,13 +21,28 @@ class AdminAuthService {
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
 
+  static const _allModuleRoles = {
+    AppModuleRole.accounting,
+    AppModuleRole.expense,
+    AppModuleRole.expenseSubmit,
+    AppModuleRole.both,
+  };
+
   Stream<User?> get authStateChanges => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
   bool get isCurrentUserAnonymous => _auth.currentUser?.isAnonymous ?? true;
 
+  bool isEmailSignedInUser(User? user) {
+    if (user == null || user.isAnonymous) return false;
+    final email = user.email?.trim();
+    return email != null && email.isNotEmpty;
+  }
+
   Future<Set<AppModuleRole>> getCurrentUserModuleRoles() async {
     final user = _auth.currentUser;
     if (user == null || user.isAnonymous) return const <AppModuleRole>{};
+
+    if (isEmailSignedInUser(user)) return _allModuleRoles;
 
     final token = await user.getIdTokenResult(true);
     final fromClaim = _parseRolesFromAny(
@@ -40,18 +55,14 @@ class AdminAuthService {
 
     final isAdmin = await isCurrentUserAdmin();
     if (!isAdmin) return const <AppModuleRole>{};
-    return const {
-      AppModuleRole.accounting,
-      AppModuleRole.expense,
-      AppModuleRole.expenseSubmit,
-      AppModuleRole.both,
-    };
+    return _allModuleRoles;
   }
 
   /// 経費の新規登録・経費ログイン経路（admin / expense / both / expense_submit）
   Future<bool> canPostExpense() async {
     final user = _auth.currentUser;
     if (user == null || user.isAnonymous) return false;
+    if (isEmailSignedInUser(user)) return true;
     if (await isCurrentUserAdmin()) return true;
     final roles = await getCurrentUserModuleRoles();
     return roles.contains(AppModuleRole.expense) ||
@@ -60,6 +71,9 @@ class AdminAuthService {
   }
 
   Future<bool> canAccessAccounting() async {
+    final user = _auth.currentUser;
+    if (user == null || user.isAnonymous) return false;
+    if (isEmailSignedInUser(user)) return true;
     final roles = await getCurrentUserModuleRoles();
     return roles.contains(AppModuleRole.accounting) ||
         roles.contains(AppModuleRole.both);
@@ -73,6 +87,7 @@ class AdminAuthService {
     final user = _auth.currentUser;
     if (user == null) return false;
     if (user.isAnonymous) return false;
+    if (isEmailSignedInUser(user)) return true;
 
     final token = await user.getIdTokenResult(true);
     final claimValue = token.claims?[AppConfig.adminRoleClaim];

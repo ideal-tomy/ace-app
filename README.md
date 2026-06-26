@@ -33,25 +33,32 @@ All application data must exist under:
 - `stores/<storeId>/customers`
 - `stores/<storeId>/checks`
 - `stores/<storeId>/menus`
-- `stores/<storeId>/admins/<uid>` (admin marker)
+- `stores/<storeId>/users/<uid>` (optional module roles)
+- `stores/<storeId>/accounting_entries`
+- `stores/<storeId>/expense_entries`
 
-Top-level collections like `customers`, `checks`, `menus`, `admins` are legacy and not used by current security rules.
+Legacy top-level `admins/{email}` documents are optional and kept for backward compatibility.
 
 ## Authentication and permission model
 
-- Signed-in users only:
-  - Login is required before using the app.
-  - Regular users can perform daily operations (visit register, ordering, browsing records).
-  - Admin operations (menu updates, finalization, protected edits) still require admin marker.
-- Admin users:
-  - Must exist in Auth (Email/Password or other provider)
-  - Must have admin marker document at `stores/<storeId>/admins/<uid>`
+- Login is required before using the app (Firebase Email/Password).
+- **Email-authenticated users are treated as store admins** and can:
+  - register visits, take orders, finalize checkout
+  - edit menus and manage user permissions
+  - access expense admin features
+- Visit registration asks for business mode (event vs normal) on each registration; there is no global mode selector.
+- Optional fine-grained roles via `stores/<storeId>/users/<uid>.moduleRoles` remain supported for legacy setups without email addresses.
+
+## Business modes
+
+- **Event (`event`)**: order-based billing; all menu items are available; no time charge.
+- **Normal (`normal`)**: time-based billing; menu shows exception drinks only (tequila, champagne, etc.); food and merchandise can be added manually.
 
 ## Troubleshooting permission-denied
 
-1. Ensure Authentication has `Email/Password` enabled and the user can sign in.
+1. Ensure Authentication has `Email/Password` enabled and the user can sign in with an email address.
 2. Ensure the app runs with the expected `APP_STORE_ID`.
-3. Ensure admin marker path is exactly `stores/<storeId>/admins/<uid>`.
-4. Ensure Firestore rules were deployed:
+3. Ensure Firestore rules were deployed:
    - `firebase deploy --only firestore:rules --project <project-id>`
-5. If using App Check, ensure correct site key is configured.
+4. If using App Check, ensure correct site key is configured.
+5. Disable or remove Firebase Auth accounts for users who should no longer have access.

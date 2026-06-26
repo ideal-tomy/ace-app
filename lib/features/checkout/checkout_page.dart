@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/admin_auth_service.dart';
-import '../../core/billing_rules.dart';
-import '../../core/business_mode.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../models/check_item.dart';
-import '../../models/check_summary.dart';
 import '../../models/person_option.dart';
+import '../shared/check_billing_summary_card.dart';
+import '../shared/check_item_actions.dart';
 import '../shared/person_selector.dart';
 
 class CheckoutPage extends StatefulWidget {
@@ -28,36 +27,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
     decimalDigits: 0,
   );
   PersonOption? _selectedPerson;
-  bool _isAdmin = false;
-  bool _adminBusy = false;
+  bool _canOperate = false;
   String? _lastSelectedCheckId;
   bool _removingLine = false;
+  bool _updatingLine = false;
 
   Future<void> _confirmRemoveLine(CheckItem item) async {
     final person = _selectedPerson;
     if (person == null || _removingLine) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('明細の削除'),
-        content: Text(
-          '次の注文を削除しますか？\n\n'
-          '${item.menuNameSnapshot}\n'
-          '数量 ${item.qty} ・ ${_currency.format(item.lineTotalTaxIncluded)}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
+    final ok = await confirmRemoveCheckItem(
+      context,
+      item: item,
+      currency: _currency,
     );
-    if (ok != true || !mounted) return;
+    if (!ok || !mounted) return;
     setState(() => _removingLine = true);
     try {
       await _checkRepository.removeOrderItem(
@@ -81,6 +64,40 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
   }
 
+  Future<void> _editLineQty(CheckItem item) async {
+    final person = _selectedPerson;
+    if (person == null || !_canOperate || _updatingLine || _removingLine) {
+      return;
+    }
+    final newQty = await showEditCheckItemQtyDialog(
+      context,
+      item: item,
+      currency: _currency,
+    );
+    if (newQty == null || newQty == item.qty || !mounted) return;
+    setState(() => _updatingLine = true);
+    try {
+      await _checkRepository.updateOrderItemQty(
+        checkId: person.openCheckId,
+        item: item,
+        newQty: newQty,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('数量を変更しました')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('変更に失敗しました: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _updatingLine = false);
+    }
+  }
+
   Future<void> _finalize() async {
     final person = _selectedPerson;
     if (person == null) return;
@@ -93,48 +110,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
   }
 
-  Future<void> _loginAsAdmin() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (_) =>
-          _CheckoutAdminLoginDialog(adminAuthService: _adminAuthService),
-    );
-    if (result != true || !mounted) return;
-    await _refreshAdminState();
-  }
-
-  Future<void> _refreshAdminState() async {
-    setState(() => _adminBusy = true);
-    try {
-      if (_adminAuthService.isCurrentUserAnonymous) {
-        if (mounted) setState(() => _isAdmin = false);
-        return;
-      }
-      final isAdmin = await _adminAuthService.isCurrentUserAdmin();
-      if (mounted) setState(() => _isAdmin = isAdmin);
-    } finally {
-      if (mounted) setState(() => _adminBusy = false);
-    }
-  }
-
-  Future<void> _signOutAdmin() async {
-    setState(() => _adminBusy = true);
-    try {
-      await _adminAuthService.signOut();
-      if (mounted) setState(() => _isAdmin = false);
-    } finally {
-      if (mounted) setState(() => _adminBusy = false);
-    }
+  Future<void> _refreshAccessState() async {
+    final canOperate = await _adminAuthService.isCurrentUserAdmin();
+    if (mounted) setState(() => _canOperate = canOperate);
   }
 
   @override
   void initState() {
     super.initState();
-    _refreshAdminState();
+    _refreshAccessState();
   }
 
   @override
   Widget build(BuildContext context) {
+    final lineBusy = _removingLine || _updatingLine;
+
     return Scaffold(
       appBar: AppBar(title: const Text('会計')),
       body: SafeArea(
@@ -142,20 +132,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
           padding: const EdgeInsets.all(12),
           child: Column(
             children: [
-              Row(
-                children: [
-                  Text(_isAdmin ? '管理者モード有効' : '一般モード'),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: _adminBusy
-                        ? null
-                        : (_isAdmin ? _signOutAdmin : _loginAsAdmin),
-                    icon: Icon(_isAdmin ? Icons.logout : Icons.lock_open),
-                    label: Text(_isAdmin ? '管理者ログアウト' : '管理者ログイン'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -187,9 +163,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   child: _CheckDetail(
                     checkId: _selectedPerson!.openCheckId,
                     currency: _currency,
-                    onDeleteLine: _isAdmin && !_removingLine
-                        ? _confirmRemoveLine
-                        : null,
+                    canOperate: _canOperate,
+                    lineBusy: lineBusy,
+                    onDeleteLine: _confirmRemoveLine,
+                    onEditLine: _editLineQty,
                   ),
                 )
               else
@@ -198,10 +175,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _selectedPerson == null || !_isAdmin
+                  onPressed: _selectedPerson == null || !_canOperate
                       ? null
                       : _finalize,
-                  child: const Text('会計確定（管理者のみ）'),
+                  child: const Text('会計確定'),
                 ),
               ),
             ],
@@ -216,269 +193,99 @@ class _CheckDetail extends StatelessWidget {
   const _CheckDetail({
     required this.checkId,
     required this.currency,
-    this.onDeleteLine,
+    required this.canOperate,
+    required this.lineBusy,
+    required this.onDeleteLine,
+    required this.onEditLine,
   });
 
   final String checkId;
   final NumberFormat currency;
-  final Future<void> Function(CheckItem item)? onDeleteLine;
+  final bool canOperate;
+  final bool lineBusy;
+  final Future<void> Function(CheckItem item) onDeleteLine;
+  final Future<void> Function(CheckItem item) onEditLine;
 
   @override
   Widget build(BuildContext context) {
     final repository = CheckRepository();
-    return StreamBuilder<CheckSummary?>(
+    return StreamBuilder(
       stream: repository.streamCheckSummary(checkId),
       builder: (context, summarySnapshot) {
         if (!summarySnapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         final summary = summarySnapshot.data!;
-        return Column(
-          children: [
-            Expanded(
-              child: StreamBuilder<List<CheckItem>>(
-                stream: repository.streamCheckItems(checkId),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return Center(child: Text('明細取得エラー: ${snapshot.error}'));
-                  }
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final items = snapshot.data!;
-                  return Column(
-                    children: [
-                      _TotalCard(
-                        summary: summary,
-                        items: items,
-                        currency: currency,
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: items.isEmpty
-                            ? const Center(child: Text('注文履歴はまだありません'))
-                            : ListView.separated(
-                                itemCount: items.length,
-                                separatorBuilder: (_, _) =>
-                                    const Divider(height: 1),
-                                itemBuilder: (context, index) {
-                                  final item = items[index];
-                                  return ListTile(
-                                    dense: true,
-                                    title: Text(item.menuNameSnapshot),
-                                    subtitle: Text('数量 ${item.qty}'),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          currency.format(
-                                            item.lineTotalTaxIncluded,
-                                          ),
-                                        ),
-                                        if (onDeleteLine != null)
-                                          IconButton(
-                                            tooltip: 'この明細を削除',
-                                            onPressed: () =>
-                                                onDeleteLine!(item),
-                                            icon: const Icon(
-                                              Icons.delete_outline,
-                                            ),
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.error,
-                                          ),
-                                      ],
+        final isPaid = summary.status == 'paid';
+
+        return StreamBuilder<List<CheckItem>>(
+          stream: repository.streamCheckItems(checkId),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(child: Text('明細取得エラー: ${snapshot.error}'));
+            }
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final items = snapshot.data!;
+
+            return Column(
+              children: [
+                CheckBillingSummaryCard(
+                  summary: summary,
+                  items: items,
+                  currency: currency,
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: items.isEmpty
+                      ? const Center(child: Text('注文履歴はまだありません'))
+                      : ListView.separated(
+                          itemCount: items.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final item = items[index];
+                            final editable =
+                                canOperate && !isPaid && !lineBusy;
+                            return ListTile(
+                              dense: true,
+                              onTap: editable ? () => onEditLine(item) : null,
+                              title: Text(item.menuNameSnapshot),
+                              subtitle: Text('数量 ${item.qty}'),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(currency.format(item.lineTotalTaxIncluded)),
+                                  if (canOperate && !isPaid) ...[
+                                    IconButton(
+                                      tooltip: '数量を変更',
+                                      onPressed: lineBusy
+                                          ? null
+                                          : () => onEditLine(item),
+                                      icon: const Icon(Icons.edit_outlined),
                                     ),
-                                  );
-                                },
+                                    IconButton(
+                                      tooltip: 'この明細を削除',
+                                      onPressed: lineBusy
+                                          ? null
+                                          : () => onDeleteLine(item),
+                                      icon: const Icon(Icons.delete_outline),
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.error,
+                                    ),
+                                  ],
+                                ],
                               ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
         );
       },
-    );
-  }
-}
-
-class _TotalCard extends StatelessWidget {
-  const _TotalCard({
-    required this.summary,
-    required this.items,
-    required this.currency,
-  });
-
-  final CheckSummary summary;
-  final List<CheckItem> items;
-  final NumberFormat currency;
-
-  @override
-  Widget build(BuildContext context) {
-    final breakdown = buildBillingBreakdown(
-      summary: summary,
-      items: items,
-      now: DateTime.now(),
-    );
-    final isNormal = summary.billingMode == BusinessMode.normal;
-    final isPaid = summary.status == 'paid';
-    final total = isPaid && summary.finalAmount != null
-        ? summary.finalAmount!
-        : (isNormal ? breakdown.normalTotal : summary.totalTaxIncluded);
-    final timeCharge = isPaid
-        ? (summary.timeChargeFinal ?? breakdown.timeCharge)
-        : breakdown.timeCharge;
-    final merchandise = isPaid
-        ? (summary.merchandiseFinal ??
-              summary.separateFinal ??
-              breakdown.merchandiseTotal)
-        : breakdown.merchandiseTotal;
-    final foodAndBeverage = isPaid
-        ? (total - merchandise).clamp(0, total)
-        : breakdown.foodAndBeverageTotal;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    summary.customerNameSnapshot,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  Text('営業モード: ${isNormal ? '通常営業' : 'イベント営業'}'),
-                  Text(
-                    '登録時間: ${DateFormat('yyyy/MM/dd HH:mm').format(summary.createdAt)}',
-                  ),
-                  Text('内税10%: ${currency.format(summary.taxAmount)}'),
-                  Text('飲食: ${currency.format(foodAndBeverage)}'),
-                  Text('物販: ${currency.format(merchandise)}'),
-                  if (isNormal)
-                    Text(
-                      '時間料金(飲食に含む): ${currency.format(timeCharge)} '
-                      '(${currency.format(breakdown.timeChargePerPerson)} × ${breakdown.peopleCount}名)',
-                    ),
-                  if (isPaid) const Text('※会計確定済み（固定金額）'),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              currency.format(total),
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CheckoutAdminLoginDialog extends StatefulWidget {
-  const _CheckoutAdminLoginDialog({required this.adminAuthService});
-
-  final AdminAuthService adminAuthService;
-
-  @override
-  State<_CheckoutAdminLoginDialog> createState() =>
-      _CheckoutAdminLoginDialogState();
-}
-
-class _CheckoutAdminLoginDialogState extends State<_CheckoutAdminLoginDialog> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _submitting = false;
-  String? _errorText;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _errorText = 'メールアドレスとパスワードを入力してください');
-      return;
-    }
-    setState(() {
-      _submitting = true;
-      _errorText = null;
-    });
-    try {
-      await widget.adminAuthService.signInWithEmailPassword(
-        email: email,
-        password: password,
-      );
-      if (!mounted) return;
-      Navigator.pop(context, true);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _errorText = 'ログインに失敗しました: $error');
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('管理者ログイン'),
-      content: SizedBox(
-        width: 360,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _emailController,
-              enabled: !_submitting,
-              decoration: const InputDecoration(
-                labelText: 'メールアドレス',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passwordController,
-              enabled: !_submitting,
-              decoration: const InputDecoration(
-                labelText: 'パスワード',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-              onSubmitted: (_) => _submitting ? null : _submit(),
-            ),
-            if (_errorText != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                _errorText!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _submitting ? null : () => Navigator.pop(context, false),
-          child: const Text('キャンセル'),
-        ),
-        FilledButton(
-          onPressed: _submitting ? null : _submit,
-          child: Text(_submitting ? '確認中...' : 'ログイン'),
-        ),
-      ],
     );
   }
 }

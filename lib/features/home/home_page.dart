@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/admin_auth_service.dart';
-import '../../core/business_mode.dart';
-import '../admin/admin_login_dialog.dart';
 import '../admin/menu_edit_page.dart';
 import '../checkout/checkout_page.dart';
 import '../order/order_page.dart';
@@ -33,28 +31,7 @@ class _HomePageState extends State<HomePage> {
     ).showSnackBar(SnackBar(content: Text('$result さんの伝票を作成しました')));
   }
 
-  Future<void> _openMenuEditWithAdminCheck() async {
-    final alreadyAdmin = await _adminAuthService.isCurrentUserAdmin();
-    if (!mounted) return;
-    if (alreadyAdmin) {
-      await Navigator.pushNamed(context, MenuEditPage.routeName);
-      return;
-    }
-
-    final loggedIn = await showAdminLoginDialog(
-      context: context,
-      adminAuthService: _adminAuthService,
-    );
-    if (!mounted || loggedIn != true) return;
-
-    final nowAdmin = await _adminAuthService.isCurrentUserAdmin();
-    if (!mounted) return;
-    if (!nowAdmin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('管理者権限がありません。admins設定を確認してください')),
-      );
-      return;
-    }
+  Future<void> _openMenuEdit() async {
     await Navigator.pushNamed(context, MenuEditPage.routeName);
   }
 
@@ -69,39 +46,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('簡易会計アプリ'),
-        actions: [
-          ValueListenableBuilder<BusinessMode>(
-            valueListenable: BusinessModeState.notifier,
-            builder: (context, mode, _) {
-              return Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<BusinessMode>(
-                    value: mode,
-                    borderRadius: BorderRadius.circular(12),
-                    items: const [
-                      DropdownMenuItem(
-                        value: BusinessMode.event,
-                        child: Text('イベント営業'),
-                      ),
-                      DropdownMenuItem(
-                        value: BusinessMode.normal,
-                        child: Text('通常営業'),
-                      ),
-                    ],
-                    onChanged: (selected) {
-                      if (selected == null) return;
-                      BusinessModeState.notifier.value = selected;
-                    },
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('簡易会計アプリ')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -128,7 +73,7 @@ class _HomePageState extends State<HomePage> {
                         child: ListTile(
                           dense: true,
                           title: Text(accountText),
-                          subtitle: Text(isAdmin ? '権限: 管理者' : '権限: 一般'),
+                          subtitle: Text(isAdmin ? '権限: 管理者' : '権限: ログイン済み'),
                           trailing: isAnonymous
                               ? null
                               : TextButton.icon(
@@ -150,8 +95,8 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 12),
               _NavButton(
-                label: '注文受付',
-                icon: Icons.restaurant_menu,
+                label: '注文・伝票',
+                icon: Icons.receipt_long_outlined,
                 onTap: () => Navigator.pushNamed(context, OrderPage.routeName),
               ),
               const SizedBox(height: 12),
@@ -162,7 +107,7 @@ class _HomePageState extends State<HomePage> {
                     Navigator.pushNamed(context, CheckoutPage.routeName),
               ),
               const SizedBox(height: 24),
-              _MenuEditEntryButton(onTap: _openMenuEditWithAdminCheck),
+              _MenuEditEntryButton(onTap: _openMenuEdit),
               const SizedBox(height: 32),
             ],
           ),

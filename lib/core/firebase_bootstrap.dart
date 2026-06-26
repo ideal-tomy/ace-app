@@ -7,6 +7,14 @@ import 'app_config.dart';
 
 Future<Object?> initializeFirebase() async {
   try {
+    const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
+    if (apiKey.isEmpty) {
+      return StateError(
+        'Firebase 設定が読み込まれていません。\n'
+        '次のコマンドで起動してください:\n'
+        'flutter run -d chrome --dart-define-from-file=firebase.web.dev.json',
+      );
+    }
     await Firebase.initializeApp(options: _firebaseOptions());
     await _activateAppCheckIfConfigured();
 

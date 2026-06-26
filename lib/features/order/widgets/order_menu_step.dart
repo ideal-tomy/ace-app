@@ -10,8 +10,10 @@ import '../../../data/repositories/menu_repository.dart';
 import '../../../models/menu_item.dart';
 import '../../../models/person_option.dart';
 import '../../admin/menu_edit_page.dart';
+import '../event_menu_tier_catalog.dart';
 import '../order_custom_item_dialogs.dart';
 import '../order_flow_state.dart';
+import 'order_event_tier_section.dart';
 
 class OrderMenuStep extends StatefulWidget {
   const OrderMenuStep({
@@ -124,13 +126,41 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
               );
             }
 
+            final isEventCheck = !isNormalCheck;
+            final gridSourceMenus = isEventCheck
+                ? sourceMenus
+                    .where((m) => isEventIndividualCategory(m.category))
+                    .toList()
+                : sourceMenus;
+
+            if (isEventCheck) {
+              return _EventMenuLayout(
+                currency: _currency,
+                individualMenus: gridSourceMenus,
+                activeCategory: _activeCategory,
+                onCategoryChanged: (cat) =>
+                    setState(() => _activeCategory = cat),
+                onMenuSelected: widget.onMenuSelected,
+                onOpenFood: _openFoodOrderDialog,
+                onOpenGoods: _openDartsGoodsDialog,
+              );
+            }
+
+            if (gridSourceMenus.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    '通常営業では例外ドリンクのみ注文可能です（対象メニューが未登録です）',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+            }
+
             final categories =
-                sourceMenus
-                    .map(
-                      (m) => isNormalCheck
-                          ? normalModeCategoryKey(m)
-                          : m.category,
-                    )
+                gridSourceMenus
+                    .map((m) => normalModeCategoryKey(m))
                     .toSet()
                     .toList()
                   ..sort((a, b) {
@@ -143,12 +173,11 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
             if (!categories.contains(_activeCategory)) {
               _activeCategory = categories.first;
             }
-            final shown = sourceMenus.where((m) {
-              if (!isNormalCheck) {
-                return m.category == _activeCategory;
-              }
-              return normalModeCategoryKey(m) == _activeCategory;
-            }).toList();
+            final shown = gridSourceMenus
+                .where(
+                  (m) => normalModeCategoryKey(m) == _activeCategory,
+                )
+                .toList();
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -175,15 +204,14 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
                     ],
                   ),
                 ),
-                if (isNormalCheck)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      '通常営業中: 例外ドリンクのみ注文できます',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    '通常営業中: 例外ドリンクのみ注文できます',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
-                if (isNormalCheck) const SizedBox(height: 6),
+                ),
+                const SizedBox(height: 6),
                 SizedBox(
                   height: 44,
                   child: ListView.separated(
@@ -194,11 +222,8 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
                     itemBuilder: (context, index) {
                       final cat = categories[index];
                       final selected = cat == _activeCategory;
-                      final categoryLabel = isNormalCheck
-                          ? normalModeCategoryLabel(cat)
-                          : MenuCategoryCatalog.labelFor(cat);
                       return ChoiceChip(
-                        label: Text(categoryLabel),
+                        label: Text(normalModeCategoryLabel(cat)),
                         selected: selected,
                         onSelected: (_) =>
                             setState(() => _activeCategory = cat),
@@ -244,6 +269,186 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
           },
         );
       },
+    );
+  }
+}
+
+class _EventMenuLayout extends StatefulWidget {
+  const _EventMenuLayout({
+    required this.currency,
+    required this.individualMenus,
+    required this.activeCategory,
+    required this.onCategoryChanged,
+    required this.onMenuSelected,
+    required this.onOpenFood,
+    required this.onOpenGoods,
+  });
+
+  final NumberFormat currency;
+  final List<MenuItem> individualMenus;
+  final String? activeCategory;
+  final ValueChanged<String> onCategoryChanged;
+  final ValueChanged<MenuItem> onMenuSelected;
+  final VoidCallback onOpenFood;
+  final VoidCallback onOpenGoods;
+
+  @override
+  State<_EventMenuLayout> createState() => _EventMenuLayoutState();
+}
+
+class _EventMenuLayoutState extends State<_EventMenuLayout> {
+  String? _activeCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeCategory = widget.activeCategory;
+  }
+
+  @override
+  void didUpdateWidget(covariant _EventMenuLayout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final categories = _individualCategories;
+    if (categories.isNotEmpty && !categories.contains(_activeCategory)) {
+      _activeCategory = categories.first;
+      widget.onCategoryChanged(_activeCategory!);
+    }
+  }
+
+  List<String> get _individualCategories {
+    return widget.individualMenus
+        .map(eventIndividualDisplayCategoryKey)
+        .toSet()
+        .toList()
+      ..sort((a, b) {
+        if (a == 'CHAMPAGNE') return b == 'CHAMPAGNE' ? 0 : -1;
+        if (b == 'CHAMPAGNE') return 1;
+        return a.compareTo(b);
+      });
+  }
+
+  List<MenuItem> get _shownIndividualMenus {
+    final cat = _activeCategory;
+    if (cat == null) return const [];
+    return widget.individualMenus
+        .where((m) => eventIndividualDisplayCategoryKey(m) == cat)
+        .toList()
+      ..sort((a, b) {
+        final catCompare = MenuCategoryCatalog.compareKeys(
+          a.category,
+          b.category,
+        );
+        if (catCompare != 0) return catCompare;
+        return a.sortOrder.compareTo(b.sortOrder);
+      });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categories = _individualCategories;
+    if (categories.isNotEmpty &&
+        (_activeCategory == null || !categories.contains(_activeCategory))) {
+      _activeCategory = categories.first;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: widget.onOpenFood,
+                  icon: const Icon(Icons.restaurant_menu),
+                  label: const Text('フード追加'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: widget.onOpenGoods,
+                  icon: const Icon(Icons.shopping_bag_outlined),
+                  label: const Text('グッズ販売'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 16),
+            children: [
+              OrderEventTierSection(onTierSelected: widget.onMenuSelected),
+              if (categories.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    '個別メニュー',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 44,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: categories.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final cat = categories[index];
+                      final selected = cat == _activeCategory;
+                      return ChoiceChip(
+                        label: Text(eventIndividualDisplayCategoryLabel(cat)),
+                        selected: selected,
+                        onSelected: (_) {
+                          setState(() => _activeCategory = cat);
+                          widget.onCategoryChanged(cat);
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _shownIndividualMenus.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 2.2,
+                  ),
+                  itemBuilder: (context, index) {
+                    final item = _shownIndividualMenus[index];
+                    return FilledButton.tonal(
+                      onPressed: () => widget.onMenuSelected(item),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            item.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(widget.currency.format(item.priceTaxIncluded)),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

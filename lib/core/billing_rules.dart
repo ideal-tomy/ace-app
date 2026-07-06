@@ -43,7 +43,11 @@ BillingBreakdown buildBillingBreakdown({
   final foodBase = (allItemsTotal - merchandise).clamp(0, allItemsTotal);
   final peopleCount = summary.peopleCount <= 0 ? 1 : summary.peopleCount;
   final isNormal = summary.billingMode == BusinessMode.normal;
-  final elapsed = now.difference(summary.createdAt);
+  final billingNow = effectiveBillingNow(
+    visitStartedAt: summary.createdAt,
+    now: now,
+  );
+  final elapsed = billingNow.difference(summary.createdAt);
   final chargePerPerson = isNormal ? calcTimeCharge(elapsed) : 0;
   final charge = chargePerPerson * peopleCount;
   final foodWithTimeCharge = foodBase + charge;
@@ -117,4 +121,34 @@ int calcTimeCharge(Duration elapsed) {
   final extraMinutes = minutes - 60;
   final extraHalfHours = (extraMinutes / 30).ceil();
   return 1200 + (extraHalfHours * 600);
+}
+
+/// 来店日の営業終了時刻（当日または翌日の 3:00）。
+DateTime businessClosingAt(DateTime visitStartedAt) {
+  var closing = DateTime(
+    visitStartedAt.year,
+    visitStartedAt.month,
+    visitStartedAt.day,
+    3,
+  );
+  if (closing.isBefore(visitStartedAt)) {
+    closing = closing.add(const Duration(days: 1));
+  }
+  return closing;
+}
+
+/// 時間料金の累計に使う時刻。閉店（3:00）を過ぎたらそこで止める。
+DateTime effectiveBillingNow({
+  required DateTime visitStartedAt,
+  required DateTime now,
+}) {
+  final closing = businessClosingAt(visitStartedAt);
+  return now.isBefore(closing) ? now : closing;
+}
+
+bool isBillingCappedAtClosing({
+  required DateTime visitStartedAt,
+  required DateTime now,
+}) {
+  return !now.isBefore(businessClosingAt(visitStartedAt));
 }

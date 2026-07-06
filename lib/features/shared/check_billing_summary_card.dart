@@ -21,13 +21,20 @@ class CheckBillingSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
     final breakdown = buildBillingBreakdown(
       summary: summary,
       items: items,
-      now: DateTime.now(),
+      now: now,
     );
     final isNormal = summary.billingMode == BusinessMode.normal;
     final isPaid = summary.status == 'paid';
+    final isCappedAtClosing = !isPaid &&
+        isNormal &&
+        isBillingCappedAtClosing(
+          visitStartedAt: summary.createdAt,
+          now: now,
+        );
     final total = checkDisplayTotal(summary: summary, items: items);
     final timeCharge = isPaid
         ? (summary.timeChargeFinal ?? breakdown.timeCharge)
@@ -67,6 +74,13 @@ class CheckBillingSummaryCard extends StatelessWidget {
                     Text(
                       '時間料金(飲食に含む): ${currency.format(timeCharge)} '
                       '(${currency.format(breakdown.timeChargePerPerson)} × ${breakdown.peopleCount}名)',
+                    ),
+                  if (isCappedAtClosing)
+                    Text(
+                      '※閉店時刻(3:00)時点で時間料金を確定',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   Text(
                     '内税10%: ${currency.format(summary.taxAmount)}',

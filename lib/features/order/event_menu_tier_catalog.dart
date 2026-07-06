@@ -30,6 +30,8 @@ const eventTierCategoryKeys = {
   'WHISKY',
   'COCKTAIL',
   'BEER',
+  'BOTTLE',
+  'PITCHER',
 };
 
 /// イベント営業で個別グリッド表示する元カテゴリ。
@@ -71,6 +73,16 @@ const eventMenuTierDefs = [
     groupKey: 'BEER',
     label: 'ビール',
     regularPrices: [660, 770],
+  ),
+  EventMenuTierDef(
+    groupKey: 'BOTTLE',
+    label: 'ボトル',
+    regularPrices: [2500],
+  ),
+  EventMenuTierDef(
+    groupKey: 'PITCHER',
+    label: 'ピッチャー',
+    regularPrices: [800],
   ),
 ];
 

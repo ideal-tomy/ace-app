@@ -58,6 +58,34 @@ void main() {
     });
   });
 
+  group('businessClosingAt', () {
+    test('夜の来店は翌日3時が閉店', () {
+      expect(
+        businessClosingAt(DateTime(2026, 7, 6, 23, 25)),
+        DateTime(2026, 7, 7, 3, 0),
+      );
+    });
+
+    test('深夜0時台の来店は当日3時が閉店', () {
+      expect(
+        businessClosingAt(DateTime(2026, 7, 7, 1, 0)),
+        DateTime(2026, 7, 7, 3, 0),
+      );
+    });
+  });
+
+  group('effectiveBillingNow', () {
+    test('閉店後は3時で時間料金の累計を止める', () {
+      expect(
+        effectiveBillingNow(
+          visitStartedAt: DateTime(2026, 7, 6, 23, 25),
+          now: DateTime(2026, 7, 7, 10, 0),
+        ),
+        DateTime(2026, 7, 7, 3, 0),
+      );
+    });
+  });
+
   group('isMerchandiseByNameAndCategory', () {
     test('DARTS_GOODSカテゴリは物販', () {
       expect(
@@ -152,6 +180,22 @@ void main() {
       expect(breakdown.merchandiseTotal, 3000);
       expect(breakdown.foodAndBeverageTotal, 6200);
       expect(breakdown.normalTotal, 9200);
+    });
+
+    test('翌朝まで会計し忘れても閉店3時までで時間料金を計算する', () {
+      final summary = _summary(
+        billingMode: BusinessMode.normal,
+        totalTaxIncluded: 0,
+        createdAt: DateTime(2026, 7, 6, 23, 25),
+      );
+      final breakdown = buildBillingBreakdown(
+        summary: summary,
+        items: const [],
+        now: DateTime(2026, 7, 7, 10, 0),
+      );
+
+      expect(breakdown.timeChargePerPerson, calcTimeCharge(const Duration(minutes: 215)));
+      expect(breakdown.timeCharge, breakdown.timeChargePerPerson);
     });
   });
 }

@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/admin_auth_service.dart';
 import '../../data/repositories/check_repository.dart';
-import '../../data/repositories/menu_repository.dart';
 import '../../models/check_item.dart';
 import '../../models/check_summary.dart';
 import '../../models/person_option.dart';
 import '../shared/check_item_actions.dart';
 import '../shared/check_status_compact_card.dart';
-import '../shared/person_selector.dart';
-import 'order_flow_sheet.dart';
+import '../shared/person_picker_list.dart';
+import 'open_order_flow.dart';
 import 'order_flow_state.dart';
 import 'order_items_sheet.dart';
 
@@ -27,15 +25,12 @@ class OrderPage extends StatefulWidget {
 
 class _OrderPageState extends State<OrderPage> {
   final _checkRepository = CheckRepository();
-  final _menuRepository = MenuRepository();
-  final _adminAuthService = AdminAuthService();
   final _currency = NumberFormat.currency(
     locale: 'ja_JP',
     symbol: '¥',
     decimalDigits: 0,
   );
   PersonOption? _selectedPerson;
-  String? _lastSelectedCheckId;
   final Map<String, DraftOrderLine> _draftOrders = {};
   bool _removingLine = false;
   bool _updatingLine = false;
@@ -105,22 +100,18 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   Future<void> _openOrderFlow() async {
-    final result = await showOrderFlowSheet(
+    final result = await openOrderFlow(
       context,
-      checkRepository: _checkRepository,
-      menuRepository: _menuRepository,
-      adminAuthService: _adminAuthService,
-      initialPerson: _selectedPerson,
       existingDraft: _draftOrders.isEmpty ? null : _draftOrders,
     );
     if (!mounted || result == null) return;
     setState(() {
       _selectedPerson = result.person;
-      _lastSelectedCheckId = result.person?.openCheckId;
       _draftOrders
         ..clear()
         ..addAll(result.draftOrders);
     });
+    showOrderFlowResultSnackBar(context, result);
   }
 
   Future<void> _openOrderItems({
@@ -139,39 +130,79 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
+  void _selectPerson(PersonOption person) {
+    setState(() {
+      _selectedPerson = person;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('注文・伝票')),
+      appBar: AppBar(title: const Text('伝票・明細')),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              StreamBuilder<List<PersonOption>>(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Text(
+                '伝票の対象者',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            Expanded(
+              flex: _selectedPerson == null ? 1 : 0,
+              child: StreamBuilder<List<PersonOption>>(
                 stream: _checkRepository.streamOpenPeople(),
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
-                    return Text('登録者取得エラー: ${snapshot.error}');
+                    return Center(
+                      child: Text('登録者取得エラー: ${snapshot.error}'),
+                    );
                   }
-                  final people = snapshot.data ?? const <PersonOption>[];
-                  return PersonSelector(
-                    people: people,
-                    label: '伝票の対象者',
-                    initialSelectedCheckId: _lastSelectedCheckId,
-                    showSearchField: false,
-                    onSelected: (person) => setState(() {
-                      _selectedPerson = person;
-                      _lastSelectedCheckId = person?.openCheckId;
-                    }),
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final people = snapshot.data!;
+                  if (_selectedPerson == null) {
+                    return PersonPickerList(
+                      people: people,
+                      onPersonSelected: _selectPerson,
+                      emptySubtitle:
+                          'ホームの「来店登録」で先に登録してください',
+                    );
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          child: Text(
+                            _selectedPerson!.displayName.isNotEmpty
+                                ? _selectedPerson!.displayName.characters.first
+                                : '?',
+                          ),
+                        ),
+                        title: Text(_selectedPerson!.displayName),
+                        subtitle: const Text('選択中'),
+                        trailing: TextButton(
+                          onPressed: () => setState(() {
+                            _selectedPerson = null;
+                          }),
+                          child: const Text('変更'),
+                        ),
+                      ),
+                    ),
                   );
                 },
               ),
-              const SizedBox(height: 16),
-              Expanded(child: _buildContent()),
-              const SizedBox(height: 12),
-              SizedBox(
+            ),
+            if (_selectedPerson != null)
+              Expanded(child: _buildCheckContent()),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: SizedBox(
                 height: 56,
                 child: FilledButton.icon(
                   onPressed: _openOrderFlow,
@@ -192,8 +223,8 @@ class _OrderPageState extends State<OrderPage> {
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -207,30 +238,8 @@ class _OrderPageState extends State<OrderPage> {
   int get _draftCount =>
       _draftOrders.values.fold(0, (sum, line) => sum + line.qty);
 
-  Widget _buildContent() {
-    final person = _selectedPerson;
-    if (person == null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.receipt_long_outlined,
-              size: 48,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '対象者を選ぶと会計状況を確認できます',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
-    }
+  Widget _buildCheckContent() {
+    final person = _selectedPerson!;
 
     return StreamBuilder<CheckSummary?>(
       stream: _checkRepository.streamCheckSummary(person.openCheckId),
@@ -259,34 +268,37 @@ class _OrderPageState extends State<OrderPage> {
             final itemCount =
                 registered.fold(0, (s, i) => s + i.qty) + _draftCount;
 
-            return Column(
-              children: [
-                const Spacer(),
-                CheckStatusCompactCard(
-                  summary: summary,
-                  items: registered,
-                  currency: _currency,
-                  draftCount: _draftCount,
-                  draftTotal: _draftTotal,
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  height: 48,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _openOrderItems(
-                      registered: registered,
-                      summary: summary,
-                    ),
-                    icon: const Icon(Icons.list_alt_outlined),
-                    label: Text(
-                      itemCount > 0
-                          ? '注文明細を見る（$itemCount 点）'
-                          : '注文明細を見る',
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  CheckStatusCompactCard(
+                    summary: summary,
+                    items: registered,
+                    currency: _currency,
+                    draftCount: _draftCount,
+                    draftTotal: _draftTotal,
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 48,
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openOrderItems(
+                        registered: registered,
+                        summary: summary,
+                      ),
+                      icon: const Icon(Icons.list_alt_outlined),
+                      label: Text(
+                        itemCount > 0
+                            ? '注文明細を見る（$itemCount 点）'
+                            : '注文明細を見る',
+                      ),
                     ),
                   ),
-                ),
-                const Spacer(flex: 2),
-              ],
+                ],
+              ),
             );
           },
         );

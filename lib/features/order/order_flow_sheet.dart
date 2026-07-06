@@ -31,8 +31,7 @@ Future<OrderFlowResult?> showOrderFlowSheet(
   required CheckRepository checkRepository,
   required MenuRepository menuRepository,
   required AdminAuthService adminAuthService,
-  PersonOption? initialPerson,
-  Map<String, DraftOrderLine>? existingDraft,
+  required OrderFlowState initialState,
 }) {
   return showModalBottomSheet<OrderFlowResult>(
     context: context,
@@ -42,11 +41,7 @@ Future<OrderFlowResult?> showOrderFlowSheet(
       checkRepository: checkRepository,
       menuRepository: menuRepository,
       adminAuthService: adminAuthService,
-      initialState: OrderFlowState(
-        person: initialPerson,
-        draftOrders: existingDraft,
-      ),
-      skipPersonStep: initialPerson != null,
+      initialState: initialState,
     ),
   );
 }
@@ -58,14 +53,12 @@ class OrderFlowSheet extends StatefulWidget {
     required this.menuRepository,
     required this.adminAuthService,
     required this.initialState,
-    required this.skipPersonStep,
   });
 
   final CheckRepository checkRepository;
   final MenuRepository menuRepository;
   final AdminAuthService adminAuthService;
   final OrderFlowState initialState;
-  final bool skipPersonStep;
 
   @override
   State<OrderFlowSheet> createState() => _OrderFlowSheetState();
@@ -87,7 +80,7 @@ class _OrderFlowSheetState extends State<OrderFlowSheet> {
   void initState() {
     super.initState();
     _state = widget.initialState.copyForSession();
-    _stepIndex = widget.skipPersonStep ? 1 : 0;
+    _stepIndex = 0;
   }
 
   int get _displayStep => _stepIndex + 1;
@@ -172,9 +165,6 @@ class _OrderFlowSheetState extends State<OrderFlowSheet> {
         );
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('注文を登録しました')));
       _close(submitted: true);
     } catch (error) {
       if (mounted) {
@@ -210,7 +200,12 @@ class _OrderFlowSheetState extends State<OrderFlowSheet> {
               onClose: () => _close(submitted: false),
             ),
             const Divider(height: 1),
-            Expanded(child: _buildStepContent()),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _buildStepContent(),
+              ),
+            ),
           ],
         ),
       ),

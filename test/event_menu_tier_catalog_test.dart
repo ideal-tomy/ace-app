@@ -7,7 +7,7 @@ void main() {
     test('has expected slim group count and order', () {
       expect(
         eventMenuTierDefs.map((d) => d.groupKey).toList(),
-        ['CHUHAI_SOUR', 'SOFT_DRINK', 'COCKTAIL', 'BEER'],
+        ['CHUHAI_SOUR', 'SOFT_DRINK', 'COCKTAIL', 'BEER', 'BOTTLE', 'PITCHER'],
       );
     });
 
@@ -130,8 +130,8 @@ void main() {
     });
 
     test('total button count matches slim spec', () {
-      // 4 groups: 2+2+1+2 = 7 buttons
-      expect(buildAllEventTierMenuItems(), hasLength(7));
+      // 6 groups: 2+2+1+2+1+1 = 9 buttons
+      expect(buildAllEventTierMenuItems(), hasLength(9));
     });
   });
 }

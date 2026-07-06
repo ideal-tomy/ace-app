@@ -1,46 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../core/admin_auth_service.dart';
 import '../admin/menu_edit_page.dart';
 import '../checkout/checkout_page.dart';
+import '../order/open_order_flow.dart';
 import '../order/order_page.dart';
 import '../visit/visit_register_page.dart';
 
-class HomePage extends StatefulWidget {
+class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   /// MaterialApp で `home` を使っているため、`'/'` と重複させないこと。
   static const routeName = '/home';
 
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  final _adminAuthService = AdminAuthService();
-
-  Future<void> _openVisitRegister() async {
+  Future<void> _openVisitRegister(BuildContext context) async {
     final result = await Navigator.pushNamed(
       context,
       VisitRegisterPage.routeName,
     );
-    if (!mounted || result == null || result is! String) return;
+    if (!context.mounted || result == null || result is! String) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('$result さんの伝票を作成しました')));
   }
 
-  Future<void> _openMenuEdit() async {
-    await Navigator.pushNamed(context, MenuEditPage.routeName);
-  }
-
-  Future<void> _logoutToAnonymous() async {
-    await _adminAuthService.signOut();
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('ログアウトしました')));
+  Future<void> _openOrderFlow(BuildContext context) async {
+    final result = await openOrderFlow(context);
+    if (!context.mounted) return;
+    showOrderFlowResultSnackBar(context, result);
   }
 
   @override
@@ -53,51 +39,25 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              StreamBuilder<User?>(
-                stream: _adminAuthService.authStateChanges,
-                initialData: _adminAuthService.currentUser,
-                builder: (context, authSnapshot) {
-                  final user = authSnapshot.data;
-                  final isAnonymous = user?.isAnonymous ?? true;
-                  final accountText = isAnonymous
-                      ? '匿名利用中'
-                      : 'ログイン中: ${user?.email ?? user?.uid ?? '(不明)'}';
-                  final adminFuture = isAnonymous
-                      ? Future<bool>.value(false)
-                      : _adminAuthService.isCurrentUserAdmin();
-                  return FutureBuilder<bool>(
-                    future: adminFuture,
-                    builder: (context, adminSnapshot) {
-                      final isAdmin = adminSnapshot.data == true;
-                      return Card(
-                        child: ListTile(
-                          dense: true,
-                          title: Text(accountText),
-                          subtitle: Text(isAdmin ? '権限: 管理者' : '権限: ログイン済み'),
-                          trailing: isAnonymous
-                              ? null
-                              : TextButton.icon(
-                                  onPressed: _logoutToAnonymous,
-                                  icon: const Icon(Icons.logout),
-                                  label: const Text('ログアウト'),
-                                ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
               _NavButton(
                 label: '来店登録',
                 icon: Icons.person_add_alt_1,
-                onTap: _openVisitRegister,
+                onTap: () => _openVisitRegister(context),
               ),
               const SizedBox(height: 12),
               _NavButton(
                 label: '注文・伝票',
                 icon: Icons.receipt_long_outlined,
-                onTap: () => Navigator.pushNamed(context, OrderPage.routeName),
+                onTap: () => _openOrderFlow(context),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () =>
+                      Navigator.pushNamed(context, OrderPage.routeName),
+                  icon: const Icon(Icons.list_alt_outlined, size: 20),
+                  label: const Text('伝票・明細を確認'),
+                ),
               ),
               const SizedBox(height: 12),
               _NavButton(
@@ -107,7 +67,10 @@ class _HomePageState extends State<HomePage> {
                     Navigator.pushNamed(context, CheckoutPage.routeName),
               ),
               const SizedBox(height: 24),
-              _MenuEditEntryButton(onTap: _openMenuEdit),
+              _MenuEditEntryButton(
+                onTap: () =>
+                    Navigator.pushNamed(context, MenuEditPage.routeName),
+              ),
               const SizedBox(height: 32),
             ],
           ),

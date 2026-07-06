@@ -203,13 +203,18 @@ class FirebaseInitErrorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final message = error.toString();
+    final looksLikeMissingConfig = message.contains('Firebase 設定が読み込まれていません');
     return Scaffold(
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
             'Firebase初期化に失敗しました。\n'
-            'Webアプリの設定値を確認してください。\n\n$error',
+            'Webアプリの設定値を確認してください。\n\n'
+            '$error'
+            '${looksLikeMissingConfig ? '\n\n古いページがキャッシュされている可能性があります。\n'
+                'ブックマークから開いた場合は、Ctrl+Shift+R（強制再読み込み）を試してください。' : ''}',
             textAlign: TextAlign.center,
           ),
         ),

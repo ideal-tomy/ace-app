@@ -182,30 +182,12 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _openFoodOrderDialog,
-                          icon: const Icon(Icons.restaurant_menu),
-                          label: const Text('フード追加'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _openDartsGoodsDialog,
-                          icon: const Icon(Icons.shopping_bag_outlined),
-                          label: const Text('グッズ販売'),
-                        ),
-                      ),
-                    ],
-                  ),
+                _FoodGoodsActionSection(
+                  onOpenFood: _openFoodOrderDialog,
+                  onOpenGoods: _openDartsGoodsDialog,
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                   child: Text(
                     '通常営業中: 例外ドリンクのみ注文できます',
                     style: Theme.of(context).textTheme.bodySmall,
@@ -354,27 +336,9 @@ class _EventMenuLayoutState extends State<_EventMenuLayout> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: widget.onOpenFood,
-                  icon: const Icon(Icons.restaurant_menu),
-                  label: const Text('フード追加'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: widget.onOpenGoods,
-                  icon: const Icon(Icons.shopping_bag_outlined),
-                  label: const Text('グッズ販売'),
-                ),
-              ),
-            ],
-          ),
+        _FoodGoodsActionSection(
+          onOpenFood: widget.onOpenFood,
+          onOpenGoods: widget.onOpenGoods,
         ),
         Expanded(
           child: ListView(
@@ -449,6 +413,73 @@ class _EventMenuLayoutState extends State<_EventMenuLayout> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _FoodGoodsActionSection extends StatelessWidget {
+  const _FoodGoodsActionSection({
+    required this.onOpenFood,
+    required this.onOpenGoods,
+  });
+
+  final VoidCallback onOpenFood;
+  final VoidCallback onOpenGoods;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: _FoodGoodsActionRow(
+        onOpenFood: onOpenFood,
+        onOpenGoods: onOpenGoods,
+      ),
+    );
+  }
+}
+
+class _FoodGoodsActionRow extends StatelessWidget {
+  const _FoodGoodsActionRow({
+    required this.onOpenFood,
+    required this.onOpenGoods,
+  });
+
+  final VoidCallback onOpenFood;
+  final VoidCallback onOpenGoods;
+
+  static final _buttonStyle = FilledButton.styleFrom(
+    minimumSize: const Size(0, 44),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final labelStyle = Theme.of(context).textTheme.labelMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+    );
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: onOpenFood,
+              style: _buttonStyle,
+              icon: const Icon(Icons.restaurant_menu, size: 18),
+              label: Text('フード追加', style: labelStyle),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: onOpenGoods,
+              style: _buttonStyle,
+              icon: const Icon(Icons.shopping_bag_outlined, size: 18),
+              label: Text('グッズ販売', style: labelStyle),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

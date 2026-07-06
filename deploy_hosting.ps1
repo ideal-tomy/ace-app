@@ -1,17 +1,19 @@
 # Flutter Web をビルドしてから Firebase Hosting に上げる（再ビルド忘れ防止）
 # 使い方: プロジェクト直下で .\deploy_hosting.ps1
+#
+# 注意: flutter build web だけだと Firebase 設定が入らず「初期化に失敗」になります。
+# 必ずこのスクリプトか --dart-define-from-file 付きでビルドしてください。
 
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
+$StoreConfigFile = Join-Path $PSScriptRoot "firebase.web.default-store.json"
+if (!(Test-Path $StoreConfigFile)) {
+  throw "Store config not found: $StoreConfigFile"
+}
+
 Write-Host "== flutter build web ==" -ForegroundColor Cyan
-flutter build web `
-  --dart-define=FIREBASE_API_KEY="AIzaSyCBeZ6VOM0XvrytA5JvKI2-w6nldHw1WEg" `
-  --dart-define=FIREBASE_APP_ID="1:1008524311093:web:2b6b43237d1c265d748f7c" `
-  --dart-define=FIREBASE_MESSAGING_SENDER_ID="1008524311093" `
-  --dart-define=FIREBASE_PROJECT_ID="aca-app-98fbc" `
-  --dart-define=FIREBASE_AUTH_DOMAIN="aca-app-98fbc.firebaseapp.com" `
-  --dart-define=FIREBASE_STORAGE_BUCKET="aca-app-98fbc.firebasestorage.app"
+flutter build web --dart-define-from-file=$StoreConfigFile
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`n== firebase deploy (hosting) ==" -ForegroundColor Cyan

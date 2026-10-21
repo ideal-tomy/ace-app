@@ -1,3 +1,4 @@
+import '../../core/billing_rules.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -20,8 +21,7 @@ class SalesSummaryAdminPage extends StatefulWidget {
   static const routeName = '/admin/sales-summary';
 
   @override
-  State<SalesSummaryAdminPage> createState() =>
-      _SalesSummaryAdminPageState();
+  State<SalesSummaryAdminPage> createState() => _SalesSummaryAdminPageState();
 }
 
 class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
@@ -40,9 +40,7 @@ class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
   String get _selectedKey => businessDateKey(_selectedBusinessDate);
 
   Future<void> _selectDate() async {
-    final jstDate = _selectedBusinessDate.toUtc().add(
-      const Duration(hours: 9),
-    );
+    final jstDate = _selectedBusinessDate.toUtc().add(const Duration(hours: 9));
     final selected = await showDatePicker(
       context: context,
       initialDate: DateTime(jstDate.year, jstDate.month, jstDate.day),
@@ -90,9 +88,7 @@ class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('$_selectedKey の営業日を締めますか？'),
-        content: Text(
-          '会計済み ${paidChecks.length}件を確定保存します。締め後はこの画面から変更できません。',
-        ),
+        content: Text('会計済み ${paidChecks.length}件を確定保存します。締め後はこの画面から変更できません。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -113,15 +109,15 @@ class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
         paidChecks: paidChecks,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$_selectedKey の日次締めを保存しました')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$_selectedKey の日次締めを保存しました')));
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('日次締めに失敗しました: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('日次締めに失敗しました: $error')));
       }
     } finally {
       if (mounted) setState(() => _closing = false);
@@ -203,9 +199,9 @@ class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
 
   bool _ensureWebCsv() {
     if (kIsWeb) return true;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('CSVダウンロードはWeb版のみ対応しています')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('CSVダウンロードはWeb版のみ対応しています')));
     return false;
   }
 
@@ -220,9 +216,7 @@ class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
           );
         }
         if (adminSnapshot.data != true) {
-          return const Scaffold(
-            body: Center(child: Text('売上集計は管理者のみ確認できます')),
-          );
+          return const Scaffold(body: Center(child: Text('売上集計は管理者のみ確認できます')));
         }
         return _buildPage();
       },
@@ -239,9 +233,7 @@ class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
             stream: _repo.streamAllChecks(),
             builder: (context, checksSnapshot) {
               if (checksSnapshot.hasError) {
-                return Center(
-                  child: Text('売上取得エラー: ${checksSnapshot.error}'),
-                );
+                return Center(child: Text('売上取得エラー: ${checksSnapshot.error}'));
               }
               if (!checksSnapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
@@ -313,6 +305,7 @@ class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
         _SalesModeFilter.normal => _repo.normalAmountOf(row),
       };
     }
+
     final displayed = _modeFiltered(paidChecks);
     final sales = displayed.fold<int>(0, (sum, row) => sum + amountOf(row));
     // 人数・件数は最終モード基準（切替は通常側）。イベント/通常フィルタでは
@@ -325,9 +318,7 @@ class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
               ? sum + row.peopleCount
               : sum,
         _SalesModeFilter.normal =>
-          row.billingMode == BusinessMode.normal
-              ? sum + row.peopleCount
-              : sum,
+          row.billingMode == BusinessMode.normal ? sum + row.peopleCount : sum,
       };
     });
     final eventSales = paidChecks.fold<int>(
@@ -351,14 +342,8 @@ class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
         SegmentedButton<_SalesModeFilter>(
           segments: const [
             ButtonSegment(value: _SalesModeFilter.all, label: Text('すべて')),
-            ButtonSegment(
-              value: _SalesModeFilter.event,
-              label: Text('イベント'),
-            ),
-            ButtonSegment(
-              value: _SalesModeFilter.normal,
-              label: Text('通常営業'),
-            ),
+            ButtonSegment(value: _SalesModeFilter.event, label: Text('イベント')),
+            ButtonSegment(value: _SalesModeFilter.normal, label: Text('通常営業')),
           ],
           selected: {_mode},
           onSelectionChanged: (value) => setState(() => _mode = value.first),
@@ -394,9 +379,7 @@ class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
             ),
             title: Text('未会計 ${openChecks.length}件'),
             subtitle: Text(
-              openChecks.isEmpty
-                  ? '日次締めを実行できます'
-                  : '未会計伝票をすべて会計してから日次締めしてください',
+              openChecks.isEmpty ? '日次締めを実行できます' : '未会計伝票をすべて会計してから日次締めしてください',
             ),
           ),
         ),
@@ -465,7 +448,7 @@ class _SalesSummaryAdminPageState extends State<SalesSummaryAdminPage> {
                         '${row.modeBadgeLabel}・${row.peopleCount}名・'
                         '${row.paymentMethod?.label ?? '支払未記録'}・'
                         '${row.closedAt == null ? '会計時刻不明' : DateFormat('HH:mm').format(row.closedAt!.toLocal())}'
-                        '${adjustment > 0 ? '・時間調整 −${currency.format(adjustment)}' : ''}',
+                        '${adjustment != 0 ? '・時間調整 ${formatTimeAdjustment(adjustment, currency.format)}' : ''}',
                       ),
                       trailing: Text(currency.format(amountOf(row))),
                       onTap: () =>

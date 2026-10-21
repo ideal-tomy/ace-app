@@ -30,6 +30,7 @@ class CheckSummary {
     this.departedAt,
     this.billingBilledMinutes,
     this.billingBilledMinutesFinal,
+    this.billingAutoBilledMinutesFinal,
     this.timeChargeAutoFinal,
     this.timeChargeAdjustmentAmount,
     this.actualStayMinutesFinal,
@@ -64,11 +65,12 @@ class CheckSummary {
   /// 会計対象時間（分）の手動指定。null は自動計算。
   final int? billingBilledMinutes;
   final int? billingBilledMinutesFinal;
+  final int? billingAutoBilledMinutesFinal;
 
   /// 手動調整前の時間料金（全員分）。
   final int? timeChargeAutoFinal;
 
-  /// 時間調整による減額（自動 − 確定、0 以上）。
+  /// 自動 − 確定。正は減額、負は増額。過去データの符号を維持する。
   final int? timeChargeAdjustmentAmount;
 
   /// 会計確定時点の実滞在（分）。
@@ -120,7 +122,9 @@ class CheckSummary {
       switchedFromEvent: map['switchedFromEvent'] as bool? ?? false,
       eventAmountFinal: (map['eventAmountFinal'] as num?)?.toInt(),
       normalAmountFinal: (map['normalAmountFinal'] as num?)?.toInt(),
-      paymentMethod: paymentMethodFromFirestore(map['paymentMethod'] as String?),
+      paymentMethod: paymentMethodFromFirestore(
+        map['paymentMethod'] as String?,
+      ),
       voidedAt: map['voidedAt'] is Timestamp
           ? (map['voidedAt'] as Timestamp).toDate()
           : null,
@@ -131,6 +135,8 @@ class CheckSummary {
       billingBilledMinutes: (map['billingBilledMinutes'] as num?)?.toInt(),
       billingBilledMinutesFinal: (map['billingBilledMinutesFinal'] as num?)
           ?.toInt(),
+      billingAutoBilledMinutesFinal:
+          (map['billingAutoBilledMinutesFinal'] as num?)?.toInt(),
       timeChargeAutoFinal: (map['timeChargeAutoFinal'] as num?)?.toInt(),
       timeChargeAdjustmentAmount: (map['timeChargeAdjustmentAmount'] as num?)
           ?.toInt(),

@@ -69,7 +69,7 @@ service cloud.firestore {
           'finalAmount', 'timeChargeFinal', 'merchandiseFinal', 'separateFinal',
           'eventAmountFinal', 'normalAmountFinal', 'paymentMethod', 'status',
           'closedAt', 'businessDate', 'businessDateKey', 'departedAt',
-          'actualStayMinutesFinal', 'billingBilledMinutesFinal',
+          'actualStayMinutesFinal', 'billingBilledMinutesFinal', 'billingAutoBilledMinutesFinal',
           'timeChargeAutoFinal', 'timeChargeAdjustmentAmount'
         ]) &&
         after.finalAmount is int && after.finalAmount >= 0 &&
@@ -79,13 +79,41 @@ service cloud.firestore {
         after.timeChargeFinal is int && after.timeChargeFinal >= 0 &&
         after.timeChargeAutoFinal is int &&
         after.timeChargeAdjustmentAmount is int &&
-        after.timeChargeAdjustmentAmount >= 0 &&
+        after.timeChargeAutoFinal >= 0 &&
         after.timeChargeAutoFinal == after.timeChargeFinal + after.timeChargeAdjustmentAmount &&
         after.paymentMethod in ['cash', 'card', 'other'] &&
         after.closedAt == request.time &&
         after.departedAt is timestamp &&
         after.actualStayMinutesFinal is int && after.actualStayMinutesFinal >= 0 &&
-        (after.billingBilledMinutesFinal == null || after.billingBilledMinutesFinal is int);
+        (after.billingBilledMinutesFinal == null || after.billingBilledMinutesFinal is int) &&
+        isValidFinalBillingMinutes(after);
+    }
+
+    // 旧クライアントは新フィールドが無い。新規保存時は自動枠・確定枠を検証する。
+    function isValidFinalBillingMinutes(data) {
+      return !('billingAutoBilledMinutesFinal' in data) || (
+        data.billingAutoBilledMinutesFinal is int &&
+        data.billingBilledMinutesFinal is int &&
+        (
+          (data.billingMode == 'event' &&
+            data.billingAutoBilledMinutesFinal == 0 && data.billingBilledMinutesFinal == 0) ||
+          (data.billingMode == 'normal' &&
+            data.billingBilledMinutesFinal >= 60 &&
+            data.billingBilledMinutesFinal % 30 == 0 &&
+            data.billingAutoBilledMinutesFinal >= 60 &&
+            data.billingAutoBilledMinutesFinal <= 1440 &&
+            data.billingBilledMinutesFinal <= 1440 &&
+            data.billingAutoBilledMinutesFinal % 30 == 0)
+        )
+      );
+    }
+
+    function isValidBillingOverride(data) {
+      return !('billingBilledMinutes' in data) || data.billingBilledMinutes == null || (
+        data.billingMode == 'normal' && data.billingBilledMinutes is int &&
+        data.billingBilledMinutes >= 60 && data.billingBilledMinutes <= 1440 &&
+        data.billingBilledMinutes % 30 == 0
+      );
     }
 
     function isDepartedAtOnlyUpdate() {
@@ -198,7 +226,8 @@ service cloud.firestore {
           // open の伝票を open のまま更新可能（注文追加/取消の合計更新、会計対象時間の指定など）。
           (
             resource.data.status == 'open' &&
-            request.resource.data.status == 'open'
+            request.resource.data.status == 'open' &&
+            isValidBillingOverride(request.resource.data)
           ) ||
           // 誤作成伝票の取消（open → voided）。再オープンは不可。
           (

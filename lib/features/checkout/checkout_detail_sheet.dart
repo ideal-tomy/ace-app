@@ -8,9 +8,8 @@ import '../../data/repositories/check_repository.dart';
 import '../../models/check_item.dart';
 import '../../models/check_summary.dart';
 import '../../models/person_option.dart';
-import '../shared/check_billing_summary_card.dart';
 import '../shared/check_item_actions.dart';
-import 'time_adjust_card.dart';
+import 'checkout_staff_billing_card.dart';
 
 Future<bool> showCheckoutDetailSheet(
   BuildContext context, {
@@ -56,9 +55,10 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
   bool _updatingLine = false;
   bool _finalizing = false;
   bool _switching = false;
+  bool _updatingTime = false;
   PaymentMethod? _paymentMethod;
 
-  bool get _lineBusy => _removingLine || _updatingLine;
+  bool get _lineBusy => _removingLine || _updatingLine || _updatingTime;
 
   Future<void> _confirmRemoveLine(CheckItem item) async {
     if (_removingLine) return;
@@ -92,6 +92,8 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
   }
 
   Future<void> _setBilledMinutes(int? minutes) async {
+    if (_updatingTime || _finalizing || !widget.canOperate) return;
+    setState(() => _updatingTime = true);
     try {
       await widget.checkRepository.updateBillingBilledMinutes(
         widget.person.openCheckId,
@@ -103,6 +105,8 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
           context,
         ).showSnackBar(SnackBar(content: Text('時間の変更に失敗しました: $e')));
       }
+    } finally {
+      if (mounted) setState(() => _updatingTime = false);
     }
   }
 
@@ -143,9 +147,7 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('投げ放題に切り替えますか？'),
-        content: const Text(
-          'これから時間料金が始まります。これまでの注文はそのまま残ります。',
-        ),
+        content: const Text('これから時間料金が始まります。これまでの注文はそのまま残ります。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -163,9 +165,9 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
     try {
       await widget.checkRepository.switchToNomihodai(summary.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('投げ放題に切り替えました')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('投げ放題に切り替えました')));
       }
     } catch (e) {
       if (mounted) {
@@ -182,9 +184,9 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
     if (!widget.canOperate || _finalizing) return;
     final method = _paymentMethod;
     if (method == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('支払方法を選んでください')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('支払方法を選んでください')));
       return;
     }
     setState(() => _finalizing = true);
@@ -271,35 +273,32 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                         return const Center(child: CircularProgressIndicator());
                       }
                       final items = itemsSnapshot.data!;
+                      final breakdown = buildBillingBreakdown(
+                        summary: summary,
+                        items: items,
+                        now: DateTime.now(),
+                      );
 
-                      return Column(
+                      return ListView(
                         children: [
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: CheckBillingSummaryCard(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                            ),
+                            child: CheckoutStaffBillingCard(
                               summary: summary,
                               items: items,
                               currency: _currency,
+                              breakdown: breakdown,
+                              timeAdjustEnabled:
+                                  widget.canOperate &&
+                                  !_finalizing &&
+                                  !_lineBusy,
+                              onBilledMinutesChanged: isPaid
+                                  ? null
+                                  : _setBilledMinutes,
                             ),
                           ),
-                          if (!isPaid &&
-                              summary.billingMode == BusinessMode.normal)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                              child: TimeAdjustCard(
-                                summary: summary,
-                                breakdown: buildBillingBreakdown(
-                                  summary: summary,
-                                  items: items,
-                                  now: DateTime.now(),
-                                ),
-                                currency: _currency,
-                                enabled: widget.canOperate &&
-                                    !_finalizing &&
-                                    !_lineBusy,
-                                onChanged: _setBilledMinutes,
-                              ),
-                            ),
                           if (widget.canOperate &&
                               !isPaid &&
                               summary.billingMode == BusinessMode.event)
@@ -310,9 +309,7 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                                     ? null
                                     : () => _switchToNomihodai(summary),
                                 icon: const Icon(Icons.swap_horiz),
-                                label: Text(
-                                  _switching ? '切替中...' : '投げ放題に切替',
-                                ),
+                                label: Text(_switching ? '切替中...' : '投げ放題に切替'),
                               ),
                             ),
                           if (!isPaid) ...[
@@ -335,6 +332,7 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                                 horizontal: 12,
                               ),
                               child: SegmentedButton<PaymentMethod>(
+                                showSelectedIcon: false,
                                 segments: [
                                   for (final method in PaymentMethod.values)
                                     ButtonSegment(
@@ -343,9 +341,7 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                                     ),
                                 ],
                                 emptySelectionAllowed: true,
-                                selected: {
-                                  ?_paymentMethod,
-                                },
+                                selected: {?_paymentMethod},
                                 onSelectionChanged: (value) {
                                   setState(() {
                                     _paymentMethod = value.isEmpty
@@ -357,71 +353,68 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                             ),
                           ],
                           const SizedBox(height: 8),
-                          Expanded(
-                            child: items.isEmpty
-                                ? const Center(
-                                    child: Text('注文履歴はまだありません'),
-                                  )
-                                : ListView.separated(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                    ),
-                                    itemCount: items.length,
-                                    separatorBuilder: (_, _) =>
-                                        const Divider(height: 1),
-                                    itemBuilder: (context, index) {
-                                      final item = items[index];
-                                      final editable = widget.canOperate &&
-                                          !isPaid &&
-                                          !_lineBusy;
-                                      return ListTile(
-                                        dense: true,
-                                        onTap: editable
-                                            ? () => _editLineQty(item)
-                                            : null,
-                                        title: Text(item.menuNameSnapshot),
-                                        subtitle: Text('数量 ${item.qty}'),
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              _currency.format(
-                                                item.lineTotalTaxIncluded,
+                          items.isEmpty
+                              ? const Center(child: Text('注文履歴はまだありません'))
+                              : ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  itemCount: items.length,
+                                  separatorBuilder: (_, _) =>
+                                      const Divider(height: 1),
+                                  itemBuilder: (context, index) {
+                                    final item = items[index];
+                                    final editable =
+                                        widget.canOperate &&
+                                        !isPaid &&
+                                        !_lineBusy;
+                                    return ListTile(
+                                      dense: true,
+                                      onTap: editable
+                                          ? () => _editLineQty(item)
+                                          : null,
+                                      title: Text(item.menuNameSnapshot),
+                                      subtitle: Text('数量 ${item.qty}'),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            _currency.format(
+                                              item.lineTotalTaxIncluded,
+                                            ),
+                                          ),
+                                          if (widget.canOperate && !isPaid) ...[
+                                            IconButton(
+                                              tooltip: '数量を変更',
+                                              onPressed: _lineBusy
+                                                  ? null
+                                                  : () => _editLineQty(item),
+                                              icon: const Icon(
+                                                Icons.edit_outlined,
                                               ),
                                             ),
-                                            if (widget.canOperate &&
-                                                !isPaid) ...[
-                                              IconButton(
-                                                tooltip: '数量を変更',
-                                                onPressed: _lineBusy
-                                                    ? null
-                                                    : () => _editLineQty(item),
-                                                icon: const Icon(
-                                                  Icons.edit_outlined,
-                                                ),
+                                            IconButton(
+                                              tooltip: 'この明細を削除',
+                                              onPressed: _lineBusy
+                                                  ? null
+                                                  : () => _confirmRemoveLine(
+                                                      item,
+                                                    ),
+                                              icon: const Icon(
+                                                Icons.delete_outline,
                                               ),
-                                              IconButton(
-                                                tooltip: 'この明細を削除',
-                                                onPressed: _lineBusy
-                                                    ? null
-                                                    : () =>
-                                                          _confirmRemoveLine(
-                                                            item,
-                                                          ),
-                                                icon: const Icon(
-                                                  Icons.delete_outline,
-                                                ),
-                                                color: Theme.of(
-                                                  context,
-                                                ).colorScheme.error,
-                                              ),
-                                            ],
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.error,
+                                            ),
                                           ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
                         ],
                       );
                     },
@@ -435,7 +428,8 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
             child: SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: widget.canOperate &&
+                onPressed:
+                    widget.canOperate &&
                         !_finalizing &&
                         !_lineBusy &&
                         !_switching &&

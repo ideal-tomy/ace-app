@@ -23,8 +23,10 @@ class BillingBreakdown {
   final int timeCharge;
   final int timeChargePerPerson;
   final int peopleCount;
+
   /// イベント課金の明細合計（物販含む）。
   final int eventItemsTotal;
+
   /// 通常課金の明細合計（物販含む、時間料金は含まない）。
   final int normalItemsTotal;
 
@@ -44,7 +46,7 @@ class BillingBreakdown {
 
   bool get isTimeAdjusted => billedMinutesOverride != null;
 
-  /// 時間調整による減額（0 以上）。
+  /// 自動料金−確定料金。正は減額、負は増額（既存保存値の符号を維持）。
   int get timeChargeAdjustment => timeChargeAuto - timeCharge;
 
   int get normalTotal => foodAndBeverageTotal + merchandiseTotal;
@@ -216,10 +218,29 @@ int billedMinutesFor(Duration elapsed) {
   return 60 + ((minutes - 60) / 30).ceil() * 30;
 }
 
-/// 会計対象時間の選択肢。自動計算の請求時間以下を30分刻みで返す（減額のみ）。
-List<int> billedMinutesChoices(int autoBilledMinutes) {
-  return [for (var m = 60; m <= autoBilledMinutes; m += 30) m];
+/// 会計対象時間の選択肢。指定された上限まで30分刻みで返す。
+List<int> billedMinutesChoices(int maxBilledMinutes) {
+  return [for (var m = 60; m <= maxBilledMinutes; m += 30) m];
 }
+
+/// 既存の起算時刻・閉店キャップで請求できる最大枠（基本60分は維持）。
+int maxManualBilledMinutes(CheckSummary summary) {
+  final start = summary.effectiveNomihodaiStartedAt;
+  if (start == null) return 0;
+  final elapsed = businessClosingAt(summary.createdAt).difference(start);
+  return billedMinutesFor(elapsed.isNegative ? Duration.zero : elapsed);
+}
+
+/// 保存値の正負を、お客様への増減の符号として表示する。
+String formatTimeAdjustment(
+  int adjustment,
+  String Function(num) formatCurrency,
+) =>
+    '${adjustment > 0
+        ? '−'
+        : adjustment < 0
+        ? '＋'
+        : ''}${formatCurrency(adjustment.abs())}';
 
 /// 例: 125分 → 「2時間05分」
 String formatStayDuration(Duration duration) {

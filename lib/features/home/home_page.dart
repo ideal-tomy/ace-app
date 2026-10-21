@@ -20,7 +20,10 @@ import '../shared/search_clear_field.dart';
 import '../visit/visit_register_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.checkRepository, this.adminAuthService});
+
+  final CheckRepository? checkRepository;
+  final AdminAuthService? adminAuthService;
 
   /// MaterialApp で `home` を使っているため、`'/'` と重複させないこと。
   static const routeName = '/home';
@@ -30,8 +33,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final _checkRepository = CheckRepository();
-  final _adminAuthService = AdminAuthService();
+  late final _checkRepository = widget.checkRepository ?? CheckRepository();
+  late final _adminAuthService = widget.adminAuthService ?? AdminAuthService();
   final _currency = NumberFormat.currency(
     locale: 'ja_JP',
     symbol: '¥',
@@ -67,10 +70,7 @@ class _HomePageState extends State<HomePage> {
       createdAtMillis: DateTime.now().millisecondsSinceEpoch,
       billingMode: result.billingMode,
     );
-    final orderResult = await openOrderFlow(
-      context,
-      preselectedPerson: person,
-    );
+    final orderResult = await openOrderFlow(context, preselectedPerson: person);
     if (!mounted) return;
     showOrderFlowResultSnackBar(context, orderResult);
   }
@@ -88,10 +88,7 @@ class _HomePageState extends State<HomePage> {
       nomihodaiStartedAtMillis:
           summary.nomihodaiStartedAt?.millisecondsSinceEpoch,
     );
-    final result = await openOrderFlow(
-      context,
-      preselectedPerson: person,
-    );
+    final result = await openOrderFlow(context, preselectedPerson: person);
     if (!mounted) return;
     showOrderFlowResultSnackBar(context, result);
   }
@@ -128,11 +125,7 @@ class _HomePageState extends State<HomePage> {
       billingMode: summary.billingMode,
       switchedFromEvent: summary.switchedFromEvent,
     );
-    await Navigator.pushNamed(
-      context,
-      OrderPage.routeName,
-      arguments: person,
-    );
+    await Navigator.pushNamed(context, OrderPage.routeName, arguments: person);
   }
 
   Future<void> _switchToNomihodai(CheckSummary summary) async {
@@ -236,9 +229,9 @@ class _HomePageState extends State<HomePage> {
           FilledButton(
             onPressed: () {
               if (controller.text.trim() != summary.customerNameSnapshot) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('名前が一致しません')),
-                );
+                ScaffoldMessenger.of(
+                  ctx,
+                ).showSnackBar(const SnackBar(content: Text('名前が一致しません')));
                 return;
               }
               Navigator.pop(ctx, true);
@@ -261,7 +254,9 @@ class _HomePageState extends State<HomePage> {
       await _checkRepository.voidCheck(checkId: summary.id, reason: reason);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${summary.customerNameSnapshot} さんの伝票を取り消しました')),
+        SnackBar(
+          content: Text('${summary.customerNameSnapshot} さんの伝票を取り消しました'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -291,34 +286,55 @@ class _HomePageState extends State<HomePage> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
+              child: Column(
                 children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _openVisitRegister,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFEA580C),
-                        foregroundColor: const Color(0xFFFAFAFA),
-                        minimumSize: const Size(0, 48),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _navigationButton(
+                          '来店登録',
+                          Icons.person_add_alt_1,
+                          _openVisitRegister,
+                        ),
                       ),
-                      icon: const Icon(Icons.person_add_alt_1),
-                      label: const Text('来店登録'),
-                    ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _navigationButton(
+                          '会計',
+                          Icons.receipt_long,
+                          () => Navigator.pushNamed(
+                            context,
+                            CheckoutPage.routeName,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    tooltip: '日別売上',
-                    onPressed: () => Navigator.pushNamed(
-                      context,
-                      SalesSummaryAdminPage.routeName,
-                    ),
-                    icon: const Icon(Icons.bar_chart),
-                  ),
-                  IconButton.filledTonal(
-                    tooltip: 'メニュー管理',
-                    onPressed: () =>
-                        Navigator.pushNamed(context, MenuEditPage.routeName),
-                    icon: const Icon(Icons.menu_book_outlined),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _navigationButton(
+                          '商品登録',
+                          Icons.menu_book_outlined,
+                          () => Navigator.pushNamed(
+                            context,
+                            MenuEditPage.routeName,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _navigationButton(
+                          '日別売上',
+                          Icons.bar_chart,
+                          () => Navigator.pushNamed(
+                            context,
+                            SalesSummaryAdminPage.routeName,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -349,12 +365,11 @@ class _HomePageState extends State<HomePage> {
                   }
                   final checks = snapshot.data!
                       .where(
-                        (c) => c.customerNameSnapshot
-                            .toLowerCase()
-                            .contains(_keyword.toLowerCase()),
+                        (c) => c.customerNameSnapshot.toLowerCase().contains(
+                          _keyword.toLowerCase(),
+                        ),
                       )
-                      .toList()
-                    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                      .toList();
 
                   if (checks.isEmpty) {
                     return Center(
@@ -364,9 +379,7 @@ class _HomePageState extends State<HomePage> {
                             : '「$_keyword」に一致する未会計はありません',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     );
@@ -400,6 +413,18 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+}
+
+Widget _navigationButton(String label, IconData icon, VoidCallback onPressed) {
+  return FilledButton.icon(
+    onPressed: onPressed,
+    style: FilledButton.styleFrom(
+      minimumSize: const Size(0, 48),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+    ),
+    icon: Icon(icon, size: 20),
+    label: Text(label, maxLines: 1),
+  );
 }
 
 class _OpenCheckCard extends StatelessWidget {
@@ -471,7 +496,7 @@ class _OpenCheckCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
-                      flex: 11,
+                      flex: 4,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -502,17 +527,21 @@ class _OpenCheckCard extends StatelessWidget {
                                 summary: summary,
                                 items: items,
                               );
-                              return Text(
-                                currency.format(total),
-                                style: _amountEntryStyle,
+                              return FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  currency.format(total),
+                                  style: _amountEntryStyle,
+                                ),
                               );
                             },
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Expanded(
-                      flex: 9,
+                      flex: 5,
                       child: _StayClock(
                         createdAt: summary.createdAt,
                         elapsedStyle: _nameElapsedStyle,
@@ -564,12 +593,15 @@ class _OpenCheckCard extends StatelessWidget {
             ),
           ),
           Positioned(
-            top: 0,
+            top: -8,
             left: 12,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: badgeColor.withValues(alpha: 0.14),
+                color: Color.alphaBlend(
+                  badgeColor.withValues(alpha: 0.14),
+                  Theme.of(context).colorScheme.surface,
+                ),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: badgeColor.withValues(alpha: 0.35)),
               ),
@@ -639,17 +671,22 @@ class _StayClockState extends State<_StayClock> {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          _elapsedLabel,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: widget.elapsedStyle,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text('経過 $_elapsedLabel', style: widget.elapsedStyle),
         ),
         const SizedBox(height: _OpenCheckCard._cardRowGap),
-        Text(
-          DateFormat('HH:mm').format(widget.createdAt),
-          style: widget.entryStyle,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(text: '入店 ', style: TextStyle(fontSize: 12)),
+                TextSpan(text: DateFormat('HH:mm').format(widget.createdAt)),
+              ],
+            ),
+            style: widget.entryStyle,
+          ),
         ),
       ],
     );

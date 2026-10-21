@@ -30,12 +30,10 @@ class CheckBillingSummaryCard extends StatelessWidget {
     );
     final isNormal = summary.billingMode == BusinessMode.normal;
     final isPaid = summary.status == 'paid';
-    final isCappedAtClosing = !isPaid &&
+    final isCappedAtClosing =
+        !isPaid &&
         isNormal &&
-        isBillingCappedAtClosing(
-          visitStartedAt: summary.createdAt,
-          now: now,
-        );
+        isBillingCappedAtClosing(visitStartedAt: summary.createdAt, now: now);
     final total = checkDisplayTotal(summary: summary, items: items);
     final timeCharge = isPaid
         ? (summary.timeChargeFinal ?? breakdown.timeCharge)
@@ -50,14 +48,14 @@ class CheckBillingSummaryCard extends StatelessWidget {
         : breakdown.eventAmount;
     final normalItems = isPaid
         ? ((summary.normalAmountFinal ?? breakdown.normalAmount) - timeCharge)
-            .clamp(0, 1 << 30)
+              .clamp(0, 1 << 30)
         : breakdown.normalItemsTotal;
     final nomihodaiAt = summary.effectiveNomihodaiStartedAt;
     final timeAdjustment = isPaid
         ? (summary.timeChargeAdjustmentAmount ?? 0)
         : breakdown.timeChargeAdjustment;
     final billedMinutesFinal = summary.billingBilledMinutesFinal;
-    final departedAt = summary.departedAt;
+    final departedAt = summary.departedAt ?? summary.closedAt;
 
     return Card(
       child: Padding(
@@ -79,15 +77,13 @@ class CheckBillingSummaryCard extends StatelessWidget {
                     '登録時間: ${DateFormat('yyyy/MM/dd HH:mm').format(summary.createdAt)}',
                   ),
                   if (summary.switchedFromEvent && nomihodaiAt != null)
-                    Text(
-                      '投げ放題開始: ${DateFormat('HH:mm').format(nomihodaiAt)}',
-                    ),
+                    Text('投げ放題開始: ${DateFormat('HH:mm').format(nomihodaiAt)}'),
                   if (isPaid && departedAt != null)
                     Text(
                       '退店: ${DateFormat('MM/dd HH:mm').format(departedAt)}'
                       '（滞在 ${formatStayDuration(departedAt.difference(summary.createdAt))}）',
                     ),
-                  if (isPaid && billedMinutesFinal != null)
+                  if (isPaid && isNormal && billedMinutesFinal != null)
                     Text(
                       '会計対象時間: '
                       '${formatStayDuration(Duration(minutes: billedMinutesFinal))}',
@@ -98,10 +94,12 @@ class CheckBillingSummaryCard extends StatelessWidget {
                   if (isNormal && timeCharge > 0)
                     Text(
                       '投げ放題時間料金: ${currency.format(timeCharge)} '
-                      '(${currency.format(breakdown.timeChargePerPerson)} × ${breakdown.peopleCount}名)',
+                      '(${currency.format(timeCharge ~/ breakdown.peopleCount)} × ${breakdown.peopleCount}名)',
                     ),
-                  if (isNormal && timeAdjustment > 0)
-                    Text('時間調整: −${currency.format(timeAdjustment)}'),
+                  if (isNormal && timeAdjustment != 0)
+                    Text(
+                      '時間調整: ${formatTimeAdjustment(timeAdjustment, currency.format)}',
+                    ),
                   if (normalItems > 0)
                     Text('切替後・通常注文: ${currency.format(normalItems)}'),
                   if (merchandise > 0)
@@ -132,10 +130,7 @@ class CheckBillingSummaryCard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  '合計',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                Text('合計', style: Theme.of(context).textTheme.bodySmall),
                 Text(
                   currency.format(total),
                   style: Theme.of(context).textTheme.headlineSmall,

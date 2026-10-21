@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/app_config.dart';
+import '../../core/billing_rules.dart';
 import '../../core/food_menu.dart';
 import '../../core/menu_category_catalog.dart';
 import '../../models/menu_item.dart';
@@ -30,6 +31,7 @@ class MenuRepository {
           b.category,
         );
         if (categoryCompare != 0) return categoryCompare;
+        if (isRegisteredFoodMenu(a)) return compareFoodMenus(a, b);
         return a.sortOrder.compareTo(b.sortOrder);
       });
       return menus;
@@ -43,7 +45,11 @@ class MenuRepository {
     ) {
       final menus = snapshot.docs
           .map((doc) => MenuItem.fromMap(doc.id, doc.data()))
-          .where((m) => !isRegisteredFoodMenu(m))
+          .where(
+            (m) =>
+                !isFoodOrderCategory(m.category) &&
+                !isMerchandiseCategory(m.category),
+          )
           .toList();
       menus.sort((a, b) {
         final categoryCompare = MenuCategoryCatalog.compareKeys(
@@ -126,7 +132,7 @@ class MenuRepository {
       return snapshot.docs
           .map((doc) => MenuItem.fromMap(doc.id, doc.data()))
           .toList()
-        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        ..sort(compareFoodMenus);
     });
   }
 
@@ -134,6 +140,64 @@ class MenuRepository {
     return streamAllFoodMenus().map(
       (menus) => menus.where((m) => m.isActive).toList(),
     );
+  }
+
+  Stream<List<MenuItem>> streamActiveGoodsMenus() => streamAllMenus().map(
+    (menus) => menus
+        .where((m) => m.isActive && isMerchandiseCategory(m.category))
+        .toList(),
+  );
+
+  /// 通常＋メガを一度に保存する。片方の登録失敗で片方だけ残さない。
+  Future<void> addMenuPair({
+    required String regularName,
+    required String megaName,
+    required String regularCategory,
+    required String megaCategory,
+    required int regularPrice,
+    required int megaPrice,
+  }) async {
+    if (regularName.trim().isEmpty ||
+        megaName.trim().isEmpty ||
+        regularPrice < 0 ||
+        megaPrice < 0) {
+      throw ArgumentError('名前と金額を正しく入力してください');
+    }
+    final regular = await _menus
+        .where('category', isEqualTo: regularCategory)
+        .get();
+    final mega = await _menus.where('category', isEqualTo: megaCategory).get();
+    final batch = _firestore.batch();
+    void add(
+      QuerySnapshot<Map<String, dynamic>> existing,
+      String name,
+      String category,
+      int price,
+    ) {
+      if (hasDuplicateFoodName(
+        existing.docs.map((d) => d.data()['name'] as String? ?? ''),
+        name,
+      )) {
+        throw StateError('「${name.trim()}」はすでに登録されています');
+      }
+      final next =
+          existing.docs.fold<int>(0, (max, d) {
+            final order = (d.data()['sortOrder'] as num?)?.toInt() ?? 0;
+            return order > max ? order : max;
+          }) +
+          10;
+      batch.set(_menus.doc(), {
+        'name': name.trim(),
+        'category': category,
+        'priceTaxIncluded': price,
+        'isActive': true,
+        'sortOrder': next,
+      });
+    }
+
+    add(regular, regularName, regularCategory, regularPrice);
+    add(mega, megaName, megaCategory, megaPrice);
+    await batch.commit();
   }
 
   /// 同名（休止中を含む）があれば [StateError]。単価変更は削除して登録し直す運用。
@@ -166,5 +230,4 @@ class MenuRepository {
       'sortOrder': maxOrder + 10,
     });
   }
-
 }

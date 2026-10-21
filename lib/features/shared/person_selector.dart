@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/person_option.dart';
+import 'search_clear_field.dart';
 
 class PersonSelector extends StatefulWidget {
   const PersonSelector({
@@ -59,12 +60,8 @@ class _PersonSelectorState extends State<PersonSelector> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.showSearchField) ...[
-          TextField(
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              labelText: '名前で検索',
-              border: OutlineInputBorder(),
-            ),
+          SearchClearField(
+            labelText: '名前で検索',
             onChanged: (value) => setState(() => _keyword = value),
           ),
           const SizedBox(height: 12),

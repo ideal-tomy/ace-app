@@ -5,10 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('eventMenuTierDefs', () {
     test('has expected slim group count and order', () {
-      expect(
-        eventMenuTierDefs.map((d) => d.groupKey).toList(),
-        ['CHUHAI_SOUR', 'SOFT_DRINK', 'COCKTAIL', 'BEER', 'BOTTLE', 'PITCHER'],
-      );
+      expect(eventMenuTierDefs.map((d) => d.groupKey).toList(), [
+        'CHUHAI_SOUR',
+        'SOFT_DRINK',
+        'COCKTAIL',
+        'BEER',
+        'BOTTLE',
+        'PITCHER',
+      ]);
     });
 
     test('chuhai sour tier prices match spec', () {
@@ -63,10 +67,7 @@ void main() {
       );
       expect(eventIndividualDisplayCategoryKey(tequila), kEventShotCategory);
       expect(eventIndividualDisplayCategoryKey(others), kEventShotCategory);
-      expect(
-        eventIndividualDisplayCategoryLabel(kEventShotCategory),
-        'ショット',
-      );
+      expect(eventIndividualDisplayCategoryLabel(kEventShotCategory), 'テキーラ他');
     });
   });
 

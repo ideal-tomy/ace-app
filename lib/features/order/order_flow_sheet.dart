@@ -144,9 +144,9 @@ class _OrderFlowSheetState extends State<OrderFlowSheet> {
       _close(submitted: true);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('注文確定に失敗しました: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('注文確定に失敗しました: $error')));
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -174,7 +174,9 @@ class _OrderFlowSheetState extends State<OrderFlowSheet> {
           children: [
             _FlowHeader(
               title: _pickingPerson ? '誰の注文ですか？' : 'メニューを選ぶ',
-              personName: !_pickingPerson ? person?.displayName : null,
+              personName: !_pickingPerson && person != null
+                  ? '${person.displayName}  ${person.peopleCount}名'
+                  : null,
               modeLabel: !_pickingPerson ? person?.modeBadgeLabel : null,
               onBack: () {
                 if (!_pickingPerson && widget.initialState.person == null) {
@@ -196,15 +198,15 @@ class _OrderFlowSheetState extends State<OrderFlowSheet> {
                       onPersonSelected: _onPersonSelected,
                     )
                   : (person == null
-                      ? const Center(child: Text('来店客が選択されていません'))
-                      : OrderMenuStep(
-                          person: person,
-                          checkRepository: widget.checkRepository,
-                          menuRepository: widget.menuRepository,
-                          adminAuthService: widget.adminAuthService,
-                          onMenuSelected: _addMenuToCart,
-                          onCustomMenuSelected: _addMenuToCart,
-                        )),
+                        ? const Center(child: Text('来店客が選択されていません'))
+                        : OrderMenuStep(
+                            person: person,
+                            checkRepository: widget.checkRepository,
+                            menuRepository: widget.menuRepository,
+                            adminAuthService: widget.adminAuthService,
+                            onMenuSelected: _addMenuToCart,
+                            onCustomMenuSelected: _addMenuToCart,
+                          )),
             ),
             if (!_pickingPerson && person != null)
               _CartBar(
@@ -245,57 +247,56 @@ class _FlowHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
-      child: Row(
+      child: Column(
         children: [
-          IconButton(
-            onPressed: onBack,
-            icon: const Icon(Icons.arrow_back),
+          Row(
+            children: [
+              IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_back)),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              if (onChangePerson != null)
+                IconButton(
+                  tooltip: '伝票切り替え',
+                  onPressed: onChangePerson,
+                  icon: const Icon(Icons.person_search_outlined),
+                ),
+              IconButton(onPressed: onClose, icon: const Icon(Icons.close)),
+            ],
           ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
-                if (personName != null)
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          personName!,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+          if (personName != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      personName!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
-                      if (modeLabel != null) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          modeLabel!,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: _orderCtaColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
-              ],
+                  if (modeLabel != null) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      modeLabel!,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: _orderCtaColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-          if (onChangePerson != null)
-            TextButton(
-              onPressed: onChangePerson,
-              child: const Text('伝票切り替え'),
-            ),
-          IconButton(
-            onPressed: onClose,
-            icon: const Icon(Icons.close),
-          ),
         ],
       ),
     );
@@ -356,10 +357,8 @@ class _CartBar extends StatelessWidget {
                           IconButton(
                             onPressed: submitting
                                 ? null
-                                : () => onQtyChanged(
-                                    line.menu.id,
-                                    line.qty - 1,
-                                  ),
+                                : () =>
+                                      onQtyChanged(line.menu.id, line.qty - 1),
                             icon: const Icon(Icons.remove_circle_outline),
                           ),
                           Text(
@@ -369,10 +368,8 @@ class _CartBar extends StatelessWidget {
                           IconButton(
                             onPressed: submitting
                                 ? null
-                                : () => onQtyChanged(
-                                    line.menu.id,
-                                    line.qty + 1,
-                                  ),
+                                : () =>
+                                      onQtyChanged(line.menu.id, line.qty + 1),
                             icon: const Icon(Icons.add_circle_outline),
                           ),
                         ],

@@ -35,15 +35,9 @@ const eventTierCategoryKeys = {
 };
 
 /// イベント営業で個別グリッド表示する元カテゴリ。
-const eventIndividualCategoryKeys = {
-  'CHAMPAGNE',
-  'TEQUILA',
-  'OTHERS',
-};
+const eventIndividualCategoryKeys = {'CHAMPAGNE', 'TEQUILA', 'OTHERS'};
 
-const _regularCategoryByGroupKey = {
-  'CHUHAI_SOUR': 'SOUR',
-};
+const _regularCategoryByGroupKey = {'CHUHAI_SOUR': 'SOUR'};
 
 const _megaCategoryByGroupKey = {
   'CHUHAI_SOUR': 'SOUR_メガサイズ',
@@ -64,26 +58,10 @@ const eventMenuTierDefs = [
     regularPrices: [440],
     megaPrice: 770,
   ),
-  EventMenuTierDef(
-    groupKey: 'COCKTAIL',
-    label: 'カクテル',
-    regularPrices: [660],
-  ),
-  EventMenuTierDef(
-    groupKey: 'BEER',
-    label: 'ビール',
-    regularPrices: [660, 770],
-  ),
-  EventMenuTierDef(
-    groupKey: 'BOTTLE',
-    label: 'ボトル',
-    regularPrices: [2500],
-  ),
-  EventMenuTierDef(
-    groupKey: 'PITCHER',
-    label: 'ピッチャー',
-    regularPrices: [800],
-  ),
+  EventMenuTierDef(groupKey: 'COCKTAIL', label: 'カクテル', regularPrices: [660]),
+  EventMenuTierDef(groupKey: 'BEER', label: 'ビール', regularPrices: [660, 770]),
+  EventMenuTierDef(groupKey: 'BOTTLE', label: 'ボトル', regularPrices: [2500]),
+  EventMenuTierDef(groupKey: 'PITCHER', label: 'ピッチャー', regularPrices: [800]),
 ];
 
 bool isEventTierCategory(String category) {
@@ -102,7 +80,7 @@ String eventIndividualDisplayCategoryKey(MenuItem item) {
 }
 
 String eventIndividualDisplayCategoryLabel(String categoryKey) {
-  if (categoryKey == kEventShotCategory) return 'ショット';
+  if (categoryKey == kEventShotCategory) return 'テキーラ他';
   if (categoryKey == 'CHAMPAGNE') return 'シャンパン';
   return categoryKey;
 }

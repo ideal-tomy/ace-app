@@ -1,0 +1,193 @@
+flutter test --no-pub --dart-define=UI_REVISION_CAPTURE=after --reporter expanded
+00:00 +0: loading C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart
+00:00 +0: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: calcTimeCharge 60分以内は1200円
+00:00 +1: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: calcTimeCharge 61分は30分超過1単位で1800円
+00:00 +2: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: calcTimeCharge 90分は30分超過1単位で1800円
+00:00 +3: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: calcTimeCharge 91分は30分超過2単位で2400円
+00:00 +4: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: billedMinutesFor 料金単位に切り上げ、calcTimeCharge と同額になる
+00:00 +5: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: billedMinutesFor 選択肢は60分から自動請求時間まで30分刻み
+00:00 +6: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: billedMinutesFor 滞在時間の表示
+00:00 +7: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: businessClosingAt 夜の来店は翌日3時が閉店
+00:00 +8: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: businessClosingAt 深夜0時台の来店は当日3時が閉店
+00:00 +9: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: effectiveBillingNow 閉店後は3時で時間料金の累計を止める
+00:00 +10: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: isMerchandiseByNameAndCategory DARTS_GOODSカテゴリは物販
+00:00 +11: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: isMerchandiseByNameAndCategory 自由入力名でもDARTS_GOODSなら物販
+00:00 +12: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: isMerchandiseByNameAndCategory 常設フード・手打ちフードは物販ではない
+00:00 +13: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: isMerchandiseByNameAndCategory 通常ドリンクは物販ではない
+00:00 +14: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: buildBillingBreakdown イベント営業は時間料金なし
+00:00 +15: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: buildBillingBreakdown 通常営業は時間料金を加算する
+00:00 +16: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: buildBillingBreakdown 会計対象時間を2時間に指定すると2時間30分相当から600円減額
+00:00 +17: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: buildBillingBreakdown イベント営業は会計対象時間の指定があっても時間料金なし
+00:00 +18: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: buildBillingBreakdown 物販は飲食合計から分離される
+00:00 +19: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: buildBillingBreakdown 翌朝まで会計し忘れても閉店3時までで時間料金を計算する
+00:00 +20: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: buildBillingBreakdown イベント→投げ放題切替は切替時刻から時間料金
+00:00 +21: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: buildBillingBreakdown 切替後の注文は通常側に按分される
+00:00 +22: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/billing_rules_test.dart: buildBillingBreakdown 旧明細はnomihodaiStartedAtで課金区分を推定する
+00:00 +23: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/business_day_test.dart: businessDateFor 05:59 JST belongs to the previous business day
+00:00 +24: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/business_day_test.dart: businessDateFor 06:00 JST starts the new business day
+00:00 +25: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/business_day_test.dart: businessDateFor before and after midnight can share one business day
+00:02 +26: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: (setUpAll)
+00:02 +26: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/drink_menu_family_test.dart: pairingKey はメガの接頭辞を除いて通常と一致する
+00:02 +27: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:02 +28: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:03 +29: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:03 +30: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:03 +31: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:03 +32: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +33: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +34: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +35: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +36: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +37: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +38: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +39: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +40: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +41: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +42: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +43: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:04 +44: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:05 +45: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:05 +46: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:05 +47: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:05 +48: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:05 +49: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:06 +50: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:06 +51: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:06 +52: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:06 +53: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:06 +54: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:06 +55: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:06 +56: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:06 +57: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:06 +58: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:06 +59: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:06 +60: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:08 +61: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:09 +62: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:09 +63: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 320px 文字倍率1.0
+00:09 +64: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 320px ホームの並列ボタン・名前順・検索×
+00:10 +65: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 320px ホームの並列ボタン・名前順・検索×
+00:11 +66: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 320px ホームの並列ボタン・名前順・検索×
+00:14 +67: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 320px ホームの並列ボタン・名前順・検索×
+00:14 +68: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 320px ホームの並列ボタン・名前順・検索×
+00:15 +69: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 320px ホームの並列ボタン・名前順・検索×
+00:16 +70: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 320px ホームの並列ボタン・名前順・検索×
+00:16 +71: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 320px ホームの並列ボタン・名前順・検索×
+00:16 +72: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_visual_test.dart: スマホ幅で日本語フォントを使って画面を描画する
+00:16 +73: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_visual_test.dart: スマホ幅で日本語フォントを使って画面を描画する
+00:17 +74: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_visual_test.dart: スマホ幅で日本語フォントを使って画面を描画する
+00:18 +75: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_visual_test.dart: スマホ幅で日本語フォントを使って画面を描画する
+00:18 +76: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_visual_test.dart: スマホ幅で日本語フォントを使って画面を描画する
+00:18 +77: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_visual_test.dart: スマホ幅で日本語フォントを使って画面を描画する
+00:21 +78: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_visual_test.dart: スマホ幅で日本語フォントを使って画面を描画する
+00:21 +79: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_visual_test.dart: スマホ幅で日本語フォントを使って画面を描画する
+00:23 +80: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 320x667 normal
+00:23 +81: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 320px normal 注文３タブは同じ来店者・カートを維持
+00:24 +82: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 320x844 文字倍率1.0 event
+00:24 +83: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 375px ホームの並列ボタン・名前順・検索×
+00:24 +84: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 320x844 文字倍率1.0 normal
+00:24 +85: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 375px event 注文３タブは同じ来店者・カートを維持
+00:25 +86: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 375px event 注文３タブは同じ来店者・カートを維持
+00:26 +87: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 375px event 注文３タブは同じ来店者・カートを維持
+00:27 +88: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 320x844 event
+00:28 +89: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 375px normal 注文３タブは同じ来店者・カートを維持
+00:29 +90: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 320x844 normal
+00:29 +91: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 商品一覧のカテゴリは閉じた状態で、展開できる
+00:29 +92: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 商品一覧のカテゴリは閉じた状態で、展開できる
+00:29 +93: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 商品一覧のカテゴリは閉じた状態で、展開できる
+00:29 +94: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/improvement_ui_test.dart: 商品一覧のカテゴリは閉じた状態で、展開できる
+00:29 +95: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 360x667 文字倍率1.0 event
+00:30 +96: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 360x667 文字倍率1.0 normal
+00:30 +97: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 360x667 文字倍率1.5 event
+00:30 +98: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 360x667 文字倍率1.5 normal
+00:31 +99: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 360x667 event
+00:32 +100: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 360x667 normal
+00:32 +101: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 360x844 文字倍率1.0 event
+00:33 +102: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 360x844 文字倍率1.0 normal
+00:33 +103: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 360x844 文字倍率1.5 event
+00:33 +104: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 360x844 文字倍率1.5 normal
+00:33 +105: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 360x844 event
+00:34 +106: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 360x844 normal
+00:34 +107: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 375px 文字倍率1.0
+00:35 +108: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 375px 文字倍率1.5
+00:35 +109: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 375px 文字倍率2.0
+00:35 +110: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 375x667 文字倍率1.0 event
+00:35 +111: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 375x667 文字倍率1.0 normal
+00:35 +112: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 375x667 文字倍率1.5 event
+00:36 +113: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 375x667 文字倍率1.5 normal
+00:36 +114: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 375x667 event
+00:36 +115: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 375x667 normal
+00:37 +116: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 375x844 文字倍率1.0 event
+00:38 +117: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 375x844 文字倍率1.0 normal
+00:38 +118: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 375x844 文字倍率1.5 event
+00:38 +119: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 375x844 文字倍率1.5 normal
+00:39 +120: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 375x844 event
+00:39 +121: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 375x844 normal
+00:39 +122: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 390px 文字倍率1.0
+00:39 +123: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 390px 文字倍率1.5
+00:39 +124: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 390px 文字倍率2.0
+00:39 +125: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 390x667 文字倍率1.0 event
+00:40 +126: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 390x667 文字倍率1.0 normal
+00:40 +127: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 390x667 文字倍率1.5 event
+00:40 +128: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 390x667 文字倍率1.5 normal
+00:40 +129: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 390x667 event
+00:40 +130: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 390x667 normal
+00:41 +131: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 390x844 文字倍率1.0 event
+00:41 +132: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 390x844 文字倍率1.0 normal
+00:41 +133: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 390x844 文字倍率1.5 event
+00:41 +134: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 390x844 文字倍率1.5 normal
+00:41 +135: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 390x844 event
+00:42 +136: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 390x844 normal
+00:42 +137: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 430px 文字倍率1.0
+00:42 +138: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 430px 文字倍率1.5
+00:42 +139: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 来店者カード 430px 文字倍率2.0
+00:42 +140: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 430x667 文字倍率1.0 event
+00:42 +141: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 430x667 文字倍率1.0 normal
+00:43 +142: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 430x667 文字倍率1.5 event
+00:43 +143: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 430x667 文字倍率1.5 normal
+00:43 +144: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 430x667 event
+00:43 +145: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 430x667 normal
+00:43 +146: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 430x844 文字倍率1.0 event
+00:44 +147: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 430x844 文字倍率1.0 normal
+00:44 +148: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 430x844 文字倍率1.5 event
+00:44 +149: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計シート 430x844 文字倍率1.5 normal
+00:44 +150: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 430x844 event
+00:44 +151: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: フード末尾 430x844 normal
+00:45 +152: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 長いフード名の2行表示 320px 文字倍率1.0
+00:45 +153: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 長いフード名の2行表示 320px 文字倍率1.5
+00:45 +154: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 長いフード名の2行表示 360px 文字倍率1.0
+00:45 +155: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 長いフード名の2行表示 360px 文字倍率1.5
+00:45 +156: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 長いフード名の2行表示 375px 文字倍率1.0
+00:45 +157: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 長いフード名の2行表示 375px 文字倍率1.5
+00:45 +158: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 長いフード名の2行表示 390px 文字倍率1.0
+00:45 +159: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 長いフード名の2行表示 390px 文字倍率1.5
+00:45 +160: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 長いフード名の2行表示 430px 文字倍率1.0
+00:45 +161: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 長いフード名の2行表示 430px 文字倍率1.5
+00:45 +162: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 会計UI→時間保存→料金再表示→確定スナップショット
+00:46 +163: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: 入店2分の時間調整表示
+00:46 +164: C:/Users/ryoji/00myapp/ai_demo_workspace/ace_app/test/checkout_ui_revision_test.dart: (tearDownAll)
+00:46 +164: All tests passed!
+
+
+flutter analyze --no-pub --no-fatal-infos
+Analyzing ace_app...                                            
+
+   info - The variable name 'FIREBASE_API_KEY' isn't a lowerCamelCase identifier - lib\core\firebase_web_runtime_config_web.dart:5:23 - non_constant_identifier_names
+   info - The variable name 'FIREBASE_APP_ID' isn't a lowerCamelCase identifier - lib\core\firebase_web_runtime_config_web.dart:6:23 - non_constant_identifier_names
+   info - The variable name 'FIREBASE_MESSAGING_SENDER_ID' isn't a lowerCamelCase identifier - lib\core\firebase_web_runtime_config_web.dart:7:23 - non_constant_identifier_names
+   info - The variable name 'FIREBASE_PROJECT_ID' isn't a lowerCamelCase identifier - lib\core\firebase_web_runtime_config_web.dart:8:23 - non_constant_identifier_names
+   info - The variable name 'FIREBASE_AUTH_DOMAIN' isn't a lowerCamelCase identifier - lib\core\firebase_web_runtime_config_web.dart:9:23 - non_constant_identifier_names
+   info - The variable name 'FIREBASE_STORAGE_BUCKET' isn't a lowerCamelCase identifier - lib\core\firebase_web_runtime_config_web.dart:10:23 - non_constant_identifier_names
+   info - The parameter name 'sum' matches a visible type name - lib\data\repositories\sales_summary_repository.dart:113:44 - avoid_types_as_parameter_names
+   info - The parameter name 'sum' matches a visible type name - lib\data\repositories\sales_summary_repository.dart:114:45 - avoid_types_as_parameter_names
+   info - The parameter name 'sum' matches a visible type name - lib\data\repositories\sales_summary_repository.dart:116:23 - avoid_types_as_parameter_names
+
+9 issues found. (ran in 36.0s)
+
+
+flutter build web --no-pub --no-wasm-dry-run
+Compiling lib\main.dart for the Web...                          
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 12736 bytes (99.2% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Font asset "CupertinoIcons.ttf" was tree-shaken, reducing it from 257628 to 1472 bytes (99.4% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Compiling lib\main.dart for the Web...                             92.2s
+√ Built build\web

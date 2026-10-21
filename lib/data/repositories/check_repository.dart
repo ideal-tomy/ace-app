@@ -6,20 +6,27 @@ import '../../core/billing_rules.dart';
 import '../../core/business_day.dart';
 import '../../core/business_mode.dart';
 import '../../core/payment_method.dart';
+import '../../core/japanese_name_order.dart';
 import '../../models/check_item.dart';
 import '../../models/check_summary.dart';
 import '../../models/menu_item.dart';
 import '../../models/person_option.dart';
 
 class CheckRepository {
-  CheckRepository({FirebaseFirestore? firestore, Uuid? uuid, String? storeId})
-    : _firestore = firestore ?? FirebaseFirestore.instance,
-      _uuid = uuid ?? const Uuid(),
-      _storeId = storeId ?? AppConfig.storeId;
+  CheckRepository({
+    FirebaseFirestore? firestore,
+    Uuid? uuid,
+    String? storeId,
+    DateTime Function()? now,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _uuid = uuid ?? const Uuid(),
+       _storeId = storeId ?? AppConfig.storeId,
+       _now = now ?? DateTime.now;
 
   final FirebaseFirestore _firestore;
   final Uuid _uuid;
   final String _storeId;
+  final DateTime Function() _now;
 
   CollectionReference<Map<String, dynamic>> get _checks =>
       _firestore.collection('stores').doc(_storeId).collection('checks');
@@ -43,12 +50,14 @@ class CheckRepository {
           switchedFromEvent: data['switchedFromEvent'] as bool? ?? false,
           totalTaxIncluded: (data['totalTaxIncluded'] as num?)?.toInt() ?? 0,
           peopleCount: (data['peopleCount'] as num?)?.toInt() ?? 1,
-          nomihodaiStartedAtMillis:
-              (data['nomihodaiStartedAt'] as Timestamp?)
-                  ?.millisecondsSinceEpoch,
+          nomihodaiStartedAtMillis: (data['nomihodaiStartedAt'] as Timestamp?)
+              ?.millisecondsSinceEpoch,
         );
       }).toList();
-      people.sort((a, b) => b.createdAtMillis.compareTo(a.createdAtMillis));
+      people.sort((a, b) {
+        final name = compareJapaneseNames(a.displayName, b.displayName);
+        return name != 0 ? name : a.openCheckId.compareTo(b.openCheckId);
+      });
       return people;
     });
   }
@@ -59,7 +68,13 @@ class CheckRepository {
       final checks = s.docs
           .map((doc) => CheckSummary.fromMap(doc.id, doc.data()))
           .toList();
-      checks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      checks.sort((a, b) {
+        final name = compareJapaneseNames(
+          a.customerNameSnapshot,
+          b.customerNameSnapshot,
+        );
+        return name != 0 ? name : a.id.compareTo(b.id);
+      });
       return checks;
     });
   }
@@ -117,10 +132,7 @@ class CheckRepository {
     return docRef.id;
   }
 
-  Future<void> voidCheck({
-    required String checkId,
-    String? reason,
-  }) async {
+  Future<void> voidCheck({required String checkId, String? reason}) async {
     final docRef = _checks.doc(checkId);
     await _firestore.runTransaction((txn) async {
       final snap = await txn.get(docRef);
@@ -294,7 +306,7 @@ class CheckRepository {
     required PaymentMethod paymentMethod,
   }) async {
     final docRef = _checks.doc(checkId);
-    final finalizedAt = DateTime.now();
+    final finalizedAt = _now();
     final businessDate = businessDateFor(finalizedAt);
     final itemsQuery = docRef.collection('items');
     final itemsSnap = await itemsQuery.get();
@@ -338,7 +350,8 @@ class CheckRepository {
         'actualStayMinutesFinal': actualStay.isNegative
             ? 0
             : actualStay.inMinutes,
-        'billingBilledMinutesFinal': breakdown.billedMinutesOverride,
+        'billingBilledMinutesFinal': breakdown.billedMinutes,
+        'billingAutoBilledMinutesFinal': breakdown.autoBilledMinutes,
         'timeChargeAutoFinal': breakdown.timeChargeAuto,
         'timeChargeAdjustmentAmount': breakdown.timeChargeAdjustment,
       });
@@ -347,6 +360,9 @@ class CheckRepository {
 
   /// 会計対象時間（分）を指定する。null で自動計算に戻す。未会計の伝票のみ。
   Future<void> updateBillingBilledMinutes(String checkId, int? minutes) async {
+    if (minutes != null && (minutes < 60 || minutes % 30 != 0)) {
+      throw ArgumentError('会計対象時間は60分以上・30分単位で指定してください。');
+    }
     final docRef = _checks.doc(checkId);
     await _firestore.runTransaction((txn) async {
       final snap = await txn.get(docRef);
@@ -355,6 +371,13 @@ class CheckRepository {
       }
       if ((snap.data()!['status'] as String? ?? 'open') != 'open') {
         throw StateError('会計確定済みの伝票は変更できません。');
+      }
+      final summary = CheckSummary.fromMap(snap.id, snap.data()!);
+      if (summary.effectiveNomihodaiStartedAt == null) {
+        throw StateError('通常営業の伝票のみ時間を調整できます。');
+      }
+      if (minutes != null && minutes > maxManualBilledMinutes(summary)) {
+        throw ArgumentError('閉店時刻までの会計対象時間を指定してください。');
       }
       txn.update(docRef, {'billingBilledMinutes': minutes});
     });
@@ -380,15 +403,15 @@ class CheckRepository {
       if (departedAt.isBefore(summary.createdAt)) {
         throw StateError('退店時刻は入店時刻より後にしてください。');
       }
-      if (departedAt.isAfter(DateTime.now())) {
+      if (departedAt.isAfter(_now())) {
         throw StateError('未来の時刻は指定できません。');
       }
       txn.update(docRef, {'departedAt': Timestamp.fromDate(departedAt)});
       txn.set(correctionRef, {
         'type': 'departed_at',
-        'fromAt': summary.departedAt == null
+        'fromAt': (summary.departedAt ?? summary.closedAt) == null
             ? null
-            : Timestamp.fromDate(summary.departedAt!),
+            : Timestamp.fromDate((summary.departedAt ?? summary.closedAt)!),
         'toAt': Timestamp.fromDate(departedAt),
         'correctedAt': FieldValue.serverTimestamp(),
         'correctedBy': correctedBy,
@@ -403,8 +426,9 @@ class CheckRepository {
         .orderBy('correctedAt', descending: true)
         .snapshots()
         .map(
-          (snapshot) =>
-              snapshot.docs.map((d) => VisitCorrection.fromMap(d.data())).toList(),
+          (snapshot) => snapshot.docs
+              .map((d) => VisitCorrection.fromMap(d.data()))
+              .toList(),
         );
   }
 }

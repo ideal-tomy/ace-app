@@ -15,7 +15,7 @@ import '../order_custom_item_dialogs.dart';
 import '../order_flow_state.dart';
 import 'order_event_tier_section.dart';
 
-enum _MenuTab { drink, food }
+enum _MenuTab { drink, food, goods }
 
 class OrderMenuStep extends StatefulWidget {
   const OrderMenuStep({
@@ -91,24 +91,22 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: SegmentedButton<_MenuTab>(
+            showSelectedIcon: false,
             segments: const [
-              ButtonSegment(
-                value: _MenuTab.drink,
-                label: Text('ドリンク'),
-                icon: Icon(Icons.local_bar),
-              ),
-              ButtonSegment(
-                value: _MenuTab.food,
-                label: Text('フード'),
-                icon: Icon(Icons.restaurant_menu),
-              ),
+              ButtonSegment(value: _MenuTab.drink, label: Text('ドリンク')),
+              ButtonSegment(value: _MenuTab.food, label: Text('フード')),
+              ButtonSegment(value: _MenuTab.goods, label: Text('グッズ')),
             ],
             selected: {_tab},
             onSelectionChanged: (s) => setState(() => _tab = s.first),
           ),
         ),
         Expanded(
-          child: _tab == _MenuTab.drink ? _buildDrinkTab() : _buildFoodTab(),
+          child: switch (_tab) {
+            _MenuTab.drink => _buildDrinkTab(),
+            _MenuTab.food => _buildFoodTab(),
+            _MenuTab.goods => _buildGoodsTab(),
+          },
         ),
       ],
     );
@@ -118,9 +116,12 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _FoodGoodsActionSection(
-          onOpenFood: _openFoodOrderDialog,
-          onOpenGoods: _openDartsGoodsDialog,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: OutlinedButton(
+            onPressed: _openFoodOrderDialog,
+            child: const Text('その他フード'),
+          ),
         ),
         Expanded(
           child: StreamBuilder<List<MenuItem>>(
@@ -150,11 +151,12 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
               return GridView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: foods.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   mainAxisSpacing: 8,
                   crossAxisSpacing: 8,
-                  childAspectRatio: _menuGridAspectRatio,
+                  mainAxisExtent:
+                      96 * MediaQuery.textScalerOf(context).scale(16) / 16,
                 ),
                 itemBuilder: (context, index) => _MenuGridButton(
                   item: foods[index],
@@ -176,6 +178,62 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
             icon: const Icon(Icons.edit_note),
             label: const Text('フードメニューを管理'),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGoodsTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: OutlinedButton(
+            onPressed: _openDartsGoodsDialog,
+            child: const Text('グッズを手入力'),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<List<MenuItem>>(
+            stream: widget.menuRepository.streamActiveGoodsMenus(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('メニュー取得エラー: ${snapshot.error}'));
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final goods = snapshot.data!;
+              if (goods.isEmpty) {
+                return const Center(child: Text('登録されたグッズがありません'));
+              }
+              return GridView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: goods.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: _menuGridAspectRatio,
+                ),
+                itemBuilder: (context, index) => _MenuGridButton(
+                  item: goods[index],
+                  currency: _currency,
+                  onPressed: widget.onMenuSelected,
+                ),
+              );
+            },
+          ),
+        ),
+        TextButton.icon(
+          onPressed: () => Navigator.pushNamed(
+            context,
+            MenuEditPage.routeName,
+            arguments: MenuRegisterKind.goods,
+          ),
+          icon: const Icon(Icons.edit_note),
+          label: const Text('グッズメニューを管理'),
         ),
       ],
     );
@@ -228,8 +286,8 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
             final isEventCheck = !isNormalCheck;
             final gridSourceMenus = isEventCheck
                 ? sourceMenus
-                    .where((m) => isEventIndividualCategory(m.category))
-                    .toList()
+                      .where((m) => isEventIndividualCategory(m.category))
+                      .toList()
                 : sourceMenus;
 
             if (isEventCheck) {
@@ -262,18 +320,16 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
                     .toList()
                   ..sort((a, b) {
                     if (a == kTequilaOthersCategory) {
-                      return b == kTequilaOthersCategory ? 0 : 1;
+                      return b == kTequilaOthersCategory ? 0 : -1;
                     }
-                    if (b == kTequilaOthersCategory) return -1;
+                    if (b == kTequilaOthersCategory) return 1;
                     return MenuCategoryCatalog.compareKeys(a, b);
                   });
             if (!categories.contains(_activeCategory)) {
               _activeCategory = categories.first;
             }
             final shown = gridSourceMenus
-                .where(
-                  (m) => normalModeCategoryKey(m) == _activeCategory,
-                )
+                .where((m) => normalModeCategoryKey(m) == _activeCategory)
                 .toList();
 
             return Column(
@@ -381,8 +437,8 @@ class _EventMenuLayoutState extends State<_EventMenuLayout> {
         .toSet()
         .toList()
       ..sort((a, b) {
-        if (a == 'CHAMPAGNE') return b == 'CHAMPAGNE' ? 0 : -1;
-        if (b == 'CHAMPAGNE') return 1;
+        if (a == kEventShotCategory) return b == kEventShotCategory ? 0 : -1;
+        if (b == kEventShotCategory) return 1;
         return a.compareTo(b);
       });
   }
@@ -418,7 +474,6 @@ class _EventMenuLayoutState extends State<_EventMenuLayout> {
           child: ListView(
             padding: const EdgeInsets.only(bottom: 16),
             children: [
-              OrderEventTierSection(onTierSelected: widget.onMenuSelected),
               if (categories.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Padding(
@@ -472,6 +527,8 @@ class _EventMenuLayoutState extends State<_EventMenuLayout> {
                   ),
                 ),
               ],
+              const SizedBox(height: 16),
+              OrderEventTierSection(onTierSelected: widget.onMenuSelected),
             ],
           ),
         ),
@@ -519,78 +576,6 @@ class _MenuGridButton extends StatelessWidget {
           Text(
             currency.format(item.priceTaxIncluded),
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FoodGoodsActionSection extends StatelessWidget {
-  const _FoodGoodsActionSection({
-    required this.onOpenFood,
-    required this.onOpenGoods,
-  });
-
-  final VoidCallback onOpenFood;
-  final VoidCallback onOpenGoods;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: _FoodGoodsActionRow(
-        onOpenFood: onOpenFood,
-        onOpenGoods: onOpenGoods,
-      ),
-    );
-  }
-}
-
-class _FoodGoodsActionRow extends StatelessWidget {
-  const _FoodGoodsActionRow({
-    required this.onOpenFood,
-    required this.onOpenGoods,
-  });
-
-  final VoidCallback onOpenFood;
-  final VoidCallback onOpenGoods;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final buttonStyle = OutlinedButton.styleFrom(
-      minimumSize: const Size(0, 52),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      backgroundColor: Colors.white,
-      foregroundColor: colors.onSurface,
-      side: BorderSide(color: colors.primary, width: 2),
-      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-    );
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onOpenFood,
-              style: buttonStyle,
-              icon: Icon(Icons.restaurant_menu, size: 20, color: colors.primary),
-              label: const Text('その他フード'),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onOpenGoods,
-              style: buttonStyle,
-              icon: Icon(
-                Icons.shopping_bag_outlined,
-                size: 20,
-                color: colors.primary,
-              ),
-              label: const Text('グッズ販売'),
-            ),
           ),
         ],
       ),

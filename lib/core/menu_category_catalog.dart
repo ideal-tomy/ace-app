@@ -35,6 +35,12 @@ class MenuCategoryCatalog {
     'OTHERS': 'アザー',
     'FOOD': 'フード',
     'FOOD_DAILY': 'フード（手打ち）',
+    'DARTS_GOODS': 'グッズ',
+    'DARTS_BARREL': 'バレル',
+    'DARTS_FLIGHT': 'フライト',
+    'DARTS_SHAFT': 'シャフト',
+    'DARTS_TIP': 'チップ',
+    'DARTS_OTHER': 'その他グッズ',
   };
 
   static String labelFor(String categoryKey) =>

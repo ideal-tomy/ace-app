@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -101,72 +103,118 @@ class _PersonPickerListState extends State<PersonPickerList> {
                     textAlign: TextAlign.center,
                   ),
                 )
-              : GridView.builder(
-                  padding: widget.padding,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 1.9,
-                  ),
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    final person = filtered[index];
-                    return Card(
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () => widget.onPersonSelected(person),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Row(
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final theme = Theme.of(context).textTheme;
+                    final scaler = MediaQuery.textScalerOf(context);
+                    double lineHeight(TextStyle? style) {
+                      final painter = TextPainter(
+                        text: TextSpan(text: 'あAg', style: style),
+                        textDirection: Directionality.of(context),
+                        textScaler: scaler,
+                      )..layout();
+                      final height = painter.height;
+                      painter.dispose();
+                      return height;
+                    }
+
+                    final columnWidth =
+                        (constraints.maxWidth - widget.padding.horizontal - 8) /
+                        2;
+                    final columns = columnWidth >= 124 * scaler.scale(14) / 14
+                        ? 2
+                        : 1;
+                    // カード余白8 + 内側余白20 + 名前/アバター + 間隔 + モード + 時刻。
+                    final height =
+                        (8 +
+                                20 +
+                                math.max(28, lineHeight(theme.titleSmall)) +
+                                6 +
+                                lineHeight(theme.labelSmall) +
+                                8 +
+                                2 +
+                                lineHeight(theme.bodySmall) +
+                                8)
+                            .ceilToDouble();
+                    return GridView.builder(
+                      padding: widget.padding,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        mainAxisExtent: height,
+                      ),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final person = filtered[index];
+                        return Card(
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () => widget.onPersonSelected(person),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  CircleAvatar(
-                                    radius: 14,
-                                    child: Text(
-                                      person.displayName.isNotEmpty
-                                          ? person.displayName.characters.first
-                                          : '?',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.labelMedium,
-                                    ),
+                                  Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 14,
+                                        child: Text(
+                                          person.displayName.isNotEmpty
+                                              ? person
+                                                    .displayName
+                                                    .characters
+                                                    .first
+                                              : '?',
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.labelMedium,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          person.displayName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleSmall,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${person.peopleCount}名',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleSmall,
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      person.displayName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleSmall,
-                                    ),
+                                  const SizedBox(height: 6),
+                                  _ModeBadge(person: person),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '入店 ${DateFormat('HH:mm').format(person.createdAt)}',
+                                    maxLines: 1,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                        ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 6),
-                              _ModeBadge(person: person),
-                              const SizedBox(height: 2),
-                              Text(
-                                DateFormat('HH:mm').format(person.createdAt),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     );
                   },
                 ),
@@ -184,9 +232,7 @@ class _ModeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isNormal = person.billingMode == BusinessMode.normal;
-    final color = isNormal
-        ? const Color(0xFF0F766E)
-        : const Color(0xFFEA580C);
+    final color = isNormal ? const Color(0xFF0F766E) : const Color(0xFFEA580C);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(

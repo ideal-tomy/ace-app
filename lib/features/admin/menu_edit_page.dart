@@ -10,7 +10,13 @@ import '../../data/repositories/menu_repository.dart';
 import '../../models/menu_item.dart';
 import '../home/home_page.dart';
 
-enum MenuRegisterKind { food, drink }
+enum MenuRegisterKind { food, drink, goods }
+
+String _kindLabel(MenuRegisterKind kind) => switch (kind) {
+  MenuRegisterKind.food => 'フード',
+  MenuRegisterKind.drink => 'ドリンク',
+  MenuRegisterKind.goods => 'グッズ',
+};
 
 enum _EditMode { register, list, remove }
 
@@ -30,18 +36,25 @@ String _registerScopeLabel(_DrinkRegisterScope scope) => switch (scope) {
 
 /// フード・ドリンクの登録／休止／削除をまとめたメニュー管理画面（ログイン済みスタッフ全員）。
 class MenuEditPage extends StatefulWidget {
-  const MenuEditPage({super.key, this.initialRegisterKind});
+  const MenuEditPage({
+    super.key,
+    this.initialRegisterKind,
+    this.menuRepository,
+    this.auth,
+  });
 
   static const routeName = '/menu-edit';
 
   final MenuRegisterKind? initialRegisterKind;
+  final MenuRepository? menuRepository;
+  final FirebaseAuth? auth;
 
   @override
   State<MenuEditPage> createState() => _MenuEditPageState();
 }
 
 class _MenuEditPageState extends State<MenuEditPage> {
-  final _repo = MenuRepository();
+  late final _repo = widget.menuRepository ?? MenuRepository();
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
   final _megaPriceController = TextEditingController();
@@ -98,7 +111,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
 
   void _selectKind(MenuRegisterKind kind) {
     _kind = kind;
-    _step = kind == MenuRegisterKind.food
+    _step = kind != MenuRegisterKind.drink
         ? _RegisterStep.name
         : _RegisterStep.family;
   }
@@ -122,7 +135,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
         case _RegisterStep.size:
           _step = _RegisterStep.family;
         case _RegisterStep.name:
-          if (_kind == MenuRegisterKind.food) {
+          if (_kind != MenuRegisterKind.drink) {
             _step = _RegisterStep.kind;
           } else {
             _step = _family!.hasMega
@@ -160,15 +173,13 @@ class _MenuEditPageState extends State<MenuEditPage> {
       final megaName = resolvedMegaName(baseName);
       setState(() => _saving = true);
       try {
-        await _repo.addMenu(
-          name: regularName,
-          category: _family!.categoryFor(DrinkSize.regular),
-          priceTaxIncluded: regularPrice,
-        );
-        await _repo.addMenu(
-          name: megaName,
-          category: _family!.categoryFor(DrinkSize.mega),
-          priceTaxIncluded: megaPrice,
+        await _repo.addMenuPair(
+          regularName: regularName,
+          megaName: megaName,
+          regularCategory: _family!.categoryFor(DrinkSize.regular),
+          megaCategory: _family!.categoryFor(DrinkSize.mega),
+          regularPrice: regularPrice,
+          megaPrice: megaPrice,
         );
       } on StateError catch (e) {
         if (mounted) _showMessage(e.message);
@@ -197,7 +208,9 @@ class _MenuEditPageState extends State<MenuEditPage> {
       } else {
         await _repo.addMenu(
           name: name,
-          category: _family!.categoryFor(_size),
+          category: _kind == MenuRegisterKind.goods
+              ? 'DARTS_GOODS'
+              : _family!.categoryFor(_size),
           priceTaxIncluded: regularPrice,
         );
       }
@@ -231,9 +244,9 @@ class _MenuEditPageState extends State<MenuEditPage> {
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
                   line,
-                  style: Theme.of(
-                    ctx,
-                  ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
           ],
@@ -311,7 +324,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (FirebaseAuth.instance.currentUser == null) {
+    if ((widget.auth ?? FirebaseAuth.instance).currentUser == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('メニュー管理')),
         body: const Center(child: Text('ログイン後に利用できます')),
@@ -326,6 +339,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SegmentedButton<_EditMode>(
+                showSelectedIcon: false,
                 segments: const [
                   ButtonSegment(
                     value: _EditMode.register,
@@ -391,8 +405,12 @@ class _MenuEditPageState extends State<MenuEditPage> {
         child: FilledButton.tonalIcon(
           onPressed: () => onSelected(kind),
           style: FilledButton.styleFrom(minimumSize: const Size(0, 88)),
-          icon: Icon(icon, size: 28),
-          label: Text(label, style: _stepTitleStyle),
+          icon: Icon(icon, size: 22),
+          label: Text(
+            label,
+            maxLines: 1,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
         ),
       );
     }
@@ -407,6 +425,16 @@ class _MenuEditPageState extends State<MenuEditPage> {
             kindButton(MenuRegisterKind.food, Icons.restaurant_menu, 'フード'),
             const SizedBox(width: 12),
             kindButton(MenuRegisterKind.drink, Icons.local_bar, 'ドリンク'),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            kindButton(
+              MenuRegisterKind.goods,
+              Icons.shopping_bag_outlined,
+              'グッズ',
+            ),
           ],
         ),
       ],
@@ -445,10 +473,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
   }
 
   Widget _sizeStep(void Function(_DrinkRegisterScope scope) onSelected) {
-    Widget scopeButton(
-      _DrinkRegisterScope scope, {
-      bool fullWidth = false,
-    }) {
+    Widget scopeButton(_DrinkRegisterScope scope, {bool fullWidth = false}) {
       final child = FilledButton.tonal(
         onPressed: () => onSelected(scope),
         style: FilledButton.styleFrom(
@@ -507,7 +532,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
   Widget _buildRegister() {
     final family = _family;
     final selections = [
-      if (_kind != null) _kind == MenuRegisterKind.food ? 'フード' : 'ドリンク',
+      if (_kind != null) _kindLabel(_kind!),
       if (_kind == MenuRegisterKind.drink &&
           family != null &&
           _step.index > _RegisterStep.family.index)
@@ -560,6 +585,8 @@ class _MenuEditPageState extends State<MenuEditPage> {
             labelText: 'メニュー名',
             hintText: _kind == MenuRegisterKind.food
                 ? '例）唐揚げ'
+                : _kind == MenuRegisterKind.goods
+                ? '例）Tシャツ'
                 : _isMegaOnlyRegister
                 ? '例）緑茶ハイ'
                 : '例）生レモンサワー',
@@ -590,9 +617,10 @@ class _MenuEditPageState extends State<MenuEditPage> {
     return StreamBuilder<List<MenuItem>>(
       stream: _repo.streamAllMenus(),
       builder: (context, snapshot) {
-        final pairs = pairDrinkMenus(_family!, snapshot.data ?? const [])
-            .where((p) => p.regular != null && p.mega == null)
-            .toList();
+        final pairs = pairDrinkMenus(
+          _family!,
+          snapshot.data ?? const [],
+        ).where((p) => p.regular != null && p.mega == null).toList();
         if (pairs.isEmpty) return const SizedBox.shrink();
         return Padding(
           padding: const EdgeInsets.only(top: 16),
@@ -673,8 +701,9 @@ class _MenuEditPageState extends State<MenuEditPage> {
           ),
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          textInputAction:
-              submitOnDone ? TextInputAction.done : TextInputAction.next,
+          textInputAction: submitOnDone
+              ? TextInputAction.done
+              : TextInputAction.next,
           onChanged: (_) => setState(() {}),
           onSubmitted: submitOnDone
               ? (_) => _saving ? null : _register()
@@ -729,6 +758,8 @@ class _MenuEditPageState extends State<MenuEditPage> {
 
     final quickPrices = _kind == MenuRegisterKind.food
         ? kFoodQuickPrices
+        : _kind == MenuRegisterKind.goods
+        ? <int>[]
         : _family!.quickPricesFor(_size);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -736,7 +767,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
         Text('金額（税込）を入力してください', style: _stepTitleStyle),
         const SizedBox(height: 16),
         _priceFields(
-          title: _kind == MenuRegisterKind.food
+          title: _kind != MenuRegisterKind.drink
               ? '金額'
               : '${_sizeLabel(_size)}サイズ',
           quickPrices: quickPrices,
@@ -780,6 +811,8 @@ class _MenuEditPageState extends State<MenuEditPage> {
         initiallyExpanded: false,
         title: Text(
           title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: Theme.of(
             context,
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
@@ -815,7 +848,8 @@ class _MenuEditPageState extends State<MenuEditPage> {
         final foods = menus.where(isRegisteredFoodMenu).toList();
         final others = <String, List<MenuItem>>{};
         for (final m in menus) {
-          if (isRegisteredFoodMenu(m) || familyForCategory(m.category) != null) {
+          if (isRegisteredFoodMenu(m) ||
+              familyForCategory(m.category) != null) {
             continue;
           }
           others.putIfAbsent(m.category, () => []).add(m);
@@ -889,7 +923,9 @@ class _MenuEditPageState extends State<MenuEditPage> {
       width: 56,
       child: Text(
         _sizeLabel(size),
-        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        style: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
     if (menu == null) {
@@ -980,7 +1016,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
         case _RemoveStep.size:
           _removeStep = _RemoveStep.family;
         case _RemoveStep.item:
-          if (_removeKind == MenuRegisterKind.food) {
+          if (_removeKind != MenuRegisterKind.drink) {
             _removeStep = _RemoveStep.kind;
           } else {
             _removeStep = _removeFamily!.hasMega
@@ -994,8 +1030,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
   Widget _buildRemove() {
     final family = _removeFamily;
     final selections = [
-      if (_removeKind != null)
-        _removeKind == MenuRegisterKind.food ? 'フード' : 'ドリンク',
+      if (_removeKind != null) _kindLabel(_removeKind!),
       if (_removeKind == MenuRegisterKind.drink &&
           family != null &&
           _removeStep.index > _RemoveStep.family.index)
@@ -1016,7 +1051,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
             '削除するメニューを選択',
             (kind) => setState(() {
               _removeKind = kind;
-              _removeStep = kind == MenuRegisterKind.food
+              _removeStep = kind != MenuRegisterKind.drink
                   ? _RemoveStep.item
                   : _RemoveStep.family;
             }),
@@ -1044,6 +1079,8 @@ class _MenuEditPageState extends State<MenuEditPage> {
   Widget _buildRemoveItems() {
     final category = _removeKind == MenuRegisterKind.food
         ? kFoodRegisteredCategory
+        : _removeKind == MenuRegisterKind.goods
+        ? 'DARTS_GOODS'
         : _removeFamily!.categoryFor(_removeSize);
     return StreamBuilder<List<MenuItem>>(
       stream: _repo.streamAllMenus(),

@@ -75,7 +75,9 @@ class _CheckVisitDetailSheetState extends State<_CheckVisitDetailSheet> {
       time.minute,
     );
     if (picked.isBefore(summary.createdAt)) {
-      _showMessage('退店時刻は入店時刻（${_dateTime.format(summary.createdAt)}）より後にしてください');
+      _showMessage(
+        '退店時刻は入店時刻（${_dateTime.format(summary.createdAt)}）より後にしてください',
+      );
       return;
     }
     if (picked.isAfter(DateTime.now())) {
@@ -139,7 +141,7 @@ class _CheckVisitDetailSheetState extends State<_CheckVisitDetailSheet> {
             child: Center(child: CircularProgressIndicator()),
           );
         }
-        final departedAt = summary.departedAt;
+        final departedAt = summary.departedAt ?? summary.closedAt;
         final billedMinutes = summary.billingBilledMinutesFinal;
         final adjustment = summary.timeChargeAdjustmentAmount ?? 0;
         final titleStyle = Theme.of(
@@ -164,13 +166,19 @@ class _CheckVisitDetailSheetState extends State<_CheckVisitDetailSheet> {
                 '実際の滞在: '
                 '${formatStayDuration(departedAt.difference(summary.createdAt))}',
               ),
-            if (billedMinutes != null)
+            if (billedMinutes != null && billedMinutes > 0)
               Text(
                 '会計対象時間: '
                 '${formatStayDuration(Duration(minutes: billedMinutes))}',
               ),
-            if (adjustment > 0)
-              Text('時間調整: −${_currency.format(adjustment)}'),
+            if ((summary.billingAutoBilledMinutesFinal ?? 0) > 0)
+              Text(
+                '自動算出した会計対象時間: ${formatStayDuration(Duration(minutes: summary.billingAutoBilledMinutesFinal!))}',
+              ),
+            if (adjustment != 0)
+              Text(
+                '時間調整: ${formatTimeAdjustment(adjustment, _currency.format)}',
+              ),
             Text(
               '確定金額: ${_currency.format(summary.finalAmount ?? summary.totalTaxIncluded)}',
             ),
@@ -189,19 +197,14 @@ class _CheckVisitDetailSheetState extends State<_CheckVisitDetailSheet> {
             ),
             const SizedBox(height: 16),
             StreamBuilder<List<VisitCorrection>>(
-              stream: widget.checkRepository.streamVisitCorrections(
-                summary.id,
-              ),
+              stream: widget.checkRepository.streamVisitCorrections(summary.id),
               builder: (context, corrections) {
                 final rows = corrections.data ?? const <VisitCorrection>[];
                 if (rows.isEmpty) return const SizedBox.shrink();
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '修正履歴',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
+                    Text('修正履歴', style: Theme.of(context).textTheme.titleSmall),
                     for (final c in rows)
                       Text(
                         '${c.correctedAt == null ? '' : _dateTime.format(c.correctedAt!)}  '

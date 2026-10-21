@@ -4,14 +4,16 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import 'app_config.dart';
+import 'firebase_web_runtime_config.dart';
 
 Future<Object?> initializeFirebase() async {
   try {
-    const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
+    final apiKey = _configValue('FIREBASE_API_KEY');
     if (apiKey.isEmpty) {
       return StateError(
         'Firebase 設定が読み込まれていません。\n'
-        '次のコマンドで起動してください:\n'
+        'デプロイ時は .\\deploy_hosting.ps1 を使ってください。\n'
+        'ローカル起動は次のコマンド:\n'
         'flutter run -d chrome --dart-define-from-file=firebase.web.dev.json',
       );
     }
@@ -48,15 +50,33 @@ Future<void> _activateAppCheckIfConfigured() async {
   );
 }
 
+String _configValue(String key) {
+  final runtime = readRuntimeFirebaseConfig();
+  final fromRuntime = runtime?[key];
+  if (fromRuntime != null && fromRuntime.isNotEmpty) {
+    return fromRuntime;
+  }
+  return switch (key) {
+    'FIREBASE_API_KEY' => const String.fromEnvironment('FIREBASE_API_KEY'),
+    'FIREBASE_APP_ID' => const String.fromEnvironment('FIREBASE_APP_ID'),
+    'FIREBASE_MESSAGING_SENDER_ID' =>
+      const String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
+    'FIREBASE_PROJECT_ID' => const String.fromEnvironment('FIREBASE_PROJECT_ID'),
+    'FIREBASE_AUTH_DOMAIN' =>
+      const String.fromEnvironment('FIREBASE_AUTH_DOMAIN'),
+    'FIREBASE_STORAGE_BUCKET' =>
+      const String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
+    _ => '',
+  };
+}
+
 FirebaseOptions _firebaseOptions() {
-  const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
-  const appId = String.fromEnvironment('FIREBASE_APP_ID');
-  const messagingSenderId = String.fromEnvironment(
-    'FIREBASE_MESSAGING_SENDER_ID',
-  );
-  const projectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
-  const authDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
-  const storageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
+  final apiKey = _configValue('FIREBASE_API_KEY');
+  final appId = _configValue('FIREBASE_APP_ID');
+  final messagingSenderId = _configValue('FIREBASE_MESSAGING_SENDER_ID');
+  final projectId = _configValue('FIREBASE_PROJECT_ID');
+  final authDomain = _configValue('FIREBASE_AUTH_DOMAIN');
+  final storageBucket = _configValue('FIREBASE_STORAGE_BUCKET');
 
   return FirebaseOptions(
     apiKey: apiKey,

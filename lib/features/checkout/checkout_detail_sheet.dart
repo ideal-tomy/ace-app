@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/billing_rules.dart';
+import '../../core/business_mode.dart';
+import '../../core/payment_method.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../models/check_item.dart';
+import '../../models/check_summary.dart';
 import '../../models/person_option.dart';
 import '../shared/check_billing_summary_card.dart';
 import '../shared/check_item_actions.dart';
+import 'time_adjust_card.dart';
 
 Future<bool> showCheckoutDetailSheet(
   BuildContext context, {
@@ -50,6 +55,8 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
   bool _removingLine = false;
   bool _updatingLine = false;
   bool _finalizing = false;
+  bool _switching = false;
+  PaymentMethod? _paymentMethod;
 
   bool get _lineBusy => _removingLine || _updatingLine;
 
@@ -84,6 +91,21 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
     }
   }
 
+  Future<void> _setBilledMinutes(int? minutes) async {
+    try {
+      await widget.checkRepository.updateBillingBilledMinutes(
+        widget.person.openCheckId,
+        minutes,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('時間の変更に失敗しました: $e')));
+      }
+    }
+  }
+
   Future<void> _editLineQty(CheckItem item) async {
     if (!widget.canOperate || _lineBusy) return;
     final newQty = await showEditCheckItemQtyDialog(
@@ -115,11 +137,62 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
     }
   }
 
+  Future<void> _switchToNomihodai(CheckSummary summary) async {
+    if (_switching) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('投げ放題に切り替えますか？'),
+        content: const Text(
+          'これから時間料金が始まります。これまでの注文はそのまま残ります。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('切り替える'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _switching = true);
+    try {
+      await widget.checkRepository.switchToNomihodai(summary.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('投げ放題に切り替えました')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('切替に失敗しました: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _switching = false);
+    }
+  }
+
   Future<void> _finalize() async {
     if (!widget.canOperate || _finalizing) return;
+    final method = _paymentMethod;
+    if (method == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('支払方法を選んでください')),
+      );
+      return;
+    }
     setState(() => _finalizing = true);
     try {
-      await widget.checkRepository.finalizeCheck(widget.person.openCheckId);
+      await widget.checkRepository.finalizeCheck(
+        widget.person.openCheckId,
+        paymentMethod: method,
+      );
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
@@ -138,7 +211,7 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
     final screenHeight = MediaQuery.sizeOf(context).height;
 
     return SizedBox(
-      height: screenHeight * 0.85,
+      height: screenHeight * 0.9,
       child: Column(
         children: [
           Padding(
@@ -209,6 +282,80 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                               currency: _currency,
                             ),
                           ),
+                          if (!isPaid &&
+                              summary.billingMode == BusinessMode.normal)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                              child: TimeAdjustCard(
+                                summary: summary,
+                                breakdown: buildBillingBreakdown(
+                                  summary: summary,
+                                  items: items,
+                                  now: DateTime.now(),
+                                ),
+                                currency: _currency,
+                                enabled: widget.canOperate &&
+                                    !_finalizing &&
+                                    !_lineBusy,
+                                onChanged: _setBilledMinutes,
+                              ),
+                            ),
+                          if (widget.canOperate &&
+                              !isPaid &&
+                              summary.billingMode == BusinessMode.event)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                              child: OutlinedButton.icon(
+                                onPressed: _switching || _lineBusy
+                                    ? null
+                                    : () => _switchToNomihodai(summary),
+                                icon: const Icon(Icons.swap_horiz),
+                                label: Text(
+                                  _switching ? '切替中...' : '投げ放題に切替',
+                                ),
+                              ),
+                            ),
+                          if (!isPaid) ...[
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '支払方法',
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: SegmentedButton<PaymentMethod>(
+                                segments: [
+                                  for (final method in PaymentMethod.values)
+                                    ButtonSegment(
+                                      value: method,
+                                      label: Text(method.label),
+                                    ),
+                                ],
+                                emptySelectionAllowed: true,
+                                selected: {
+                                  ?_paymentMethod,
+                                },
+                                onSelectionChanged: (value) {
+                                  setState(() {
+                                    _paymentMethod = value.isEmpty
+                                        ? null
+                                        : value.first;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 8),
                           Expanded(
                             child: items.isEmpty
@@ -242,7 +389,8 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                                                 item.lineTotalTaxIncluded,
                                               ),
                                             ),
-                                            if (widget.canOperate && !isPaid) ...[
+                                            if (widget.canOperate &&
+                                                !isPaid) ...[
                                               IconButton(
                                                 tooltip: '数量を変更',
                                                 onPressed: _lineBusy
@@ -287,7 +435,11 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
             child: SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: widget.canOperate && !_finalizing && !_lineBusy
+                onPressed: widget.canOperate &&
+                        !_finalizing &&
+                        !_lineBusy &&
+                        !_switching &&
+                        _paymentMethod != null
                     ? _finalize
                     : null,
                 child: Text(_finalizing ? '会計確定中...' : '会計確定'),

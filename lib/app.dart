@@ -8,6 +8,7 @@ import 'core/role_guard.dart';
 import 'features/accounting/accounting_dashboard_page.dart';
 import 'features/admin/expense_summary_admin_page.dart';
 import 'features/admin/menu_edit_page.dart';
+import 'features/admin/sales_summary_admin_page.dart';
 import 'features/admin/store_user_permissions_page.dart';
 import 'features/auth/login_entry_target.dart';
 import 'features/auth/login_page.dart';
@@ -81,11 +82,18 @@ class AceApp extends StatelessWidget {
           fallbackRouteName: HomePage.routeName,
           child: ExpenseDashboardPage(),
         ),
-        MenuEditPage.routeName: (_) => const MenuEditPage(),
+        MenuEditPage.routeName: (ctx) => MenuEditPage(
+          initialRegisterKind:
+              ModalRoute.of(ctx)?.settings.arguments as MenuRegisterKind?,
+        ),
+        // 旧フード管理 URL の互換。
+        '/food-menu-manage': (_) =>
+            const MenuEditPage(initialRegisterKind: MenuRegisterKind.food),
         StoreUserPermissionsPage.routeName: (_) =>
             const StoreUserPermissionsPage(),
         ExpenseSummaryAdminPage.routeName: (_) =>
             const ExpenseSummaryAdminPage(),
+        SalesSummaryAdminPage.routeName: (_) => const SalesSummaryAdminPage(),
       },
     );
   }
@@ -214,7 +222,10 @@ class FirebaseInitErrorScreen extends StatelessWidget {
             'Webアプリの設定値を確認してください。\n\n'
             '$error'
             '${looksLikeMissingConfig ? '\n\n古いページがキャッシュされている可能性があります。\n'
-                'ブックマークから開いた場合は、Ctrl+Shift+R（強制再読み込み）を試してください。' : ''}',
+                '1. iPhoneのSafariでURLを開き直す\n'
+                '2. 設定 > Safari > 詳細 > Webサイトデータ からこのサイトを削除\n'
+                '3. ホーム画面のショートカットは削除して作り直す\n'
+                '4. LINE内ブラウザではなく Safari で開く' : ''}',
             textAlign: TextAlign.center,
           ),
         ),

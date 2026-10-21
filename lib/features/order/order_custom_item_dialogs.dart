@@ -61,7 +61,7 @@ class _CustomFoodOrderDialogState extends State<CustomFoodOrderDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('フード追加'),
+      title: const Text('その他フード'),
       content: SizedBox(
         width: 360,
         child: Column(
@@ -150,7 +150,7 @@ class _CustomGoodsOrderDialogState extends State<CustomGoodsOrderDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('グッズ販売追加'),
+      title: const Text('グッズ販売'),
       content: SizedBox(
         width: 360,
         child: Column(

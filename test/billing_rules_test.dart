@@ -9,6 +9,9 @@ CheckSummary _summary({
   required int totalTaxIncluded,
   DateTime? createdAt,
   int peopleCount = 1,
+  DateTime? nomihodaiStartedAt,
+  bool switchedFromEvent = false,
+  int? billingBilledMinutes,
 }) {
   return CheckSummary(
     id: 'check-1',
@@ -20,6 +23,9 @@ CheckSummary _summary({
     totalTaxIncluded: totalTaxIncluded,
     taxAmount: (totalTaxIncluded * 10 / 110).floor(),
     createdAt: createdAt ?? DateTime(2026, 1, 1, 18, 0),
+    nomihodaiStartedAt: nomihodaiStartedAt,
+    switchedFromEvent: switchedFromEvent,
+    billingBilledMinutes: billingBilledMinutes,
   );
 }
 
@@ -27,15 +33,18 @@ CheckItem _item({
   required String name,
   required String category,
   required int lineTotal,
+  DateTime? orderedAt,
+  BusinessMode? billedAs,
 }) {
   return CheckItem(
-    id: 'item-$name',
+    id: 'item-$name-$lineTotal',
     menuNameSnapshot: name,
     menuCategorySnapshot: category,
     unitPriceTaxIncluded: lineTotal,
     qty: 1,
     lineTotalTaxIncluded: lineTotal,
-    orderedAt: DateTime(2026, 1, 1, 18, 10),
+    orderedAt: orderedAt ?? DateTime(2026, 1, 1, 18, 10),
+    billedAs: billedAs,
   );
 }
 
@@ -55,6 +64,30 @@ void main() {
 
     test('91分は30分超過2単位で2400円', () {
       expect(calcTimeCharge(const Duration(minutes: 91)), 2400);
+    });
+  });
+
+  group('billedMinutesFor', () {
+    test('料金単位に切り上げ、calcTimeCharge と同額になる', () {
+      expect(billedMinutesFor(const Duration(minutes: 40)), 60);
+      expect(billedMinutesFor(const Duration(minutes: 125)), 150);
+      for (final m in [10, 60, 61, 90, 91, 125, 240]) {
+        final elapsed = Duration(minutes: m);
+        expect(
+          calcTimeCharge(Duration(minutes: billedMinutesFor(elapsed))),
+          calcTimeCharge(elapsed),
+        );
+      }
+    });
+
+    test('選択肢は60分から自動請求時間まで30分刻み', () {
+      expect(billedMinutesChoices(150), [60, 90, 120, 150]);
+      expect(billedMinutesChoices(60), [60]);
+    });
+
+    test('滞在時間の表示', () {
+      expect(formatStayDuration(const Duration(minutes: 125)), '2時間05分');
+      expect(formatStayDuration(const Duration(minutes: 45)), '45分');
     });
   });
 
@@ -107,6 +140,17 @@ void main() {
       );
     });
 
+    test('常設フード・手打ちフードは物販ではない', () {
+      expect(
+        isMerchandiseByNameAndCategory(name: '唐揚げ', category: 'FOOD'),
+        isFalse,
+      );
+      expect(
+        isMerchandiseByNameAndCategory(name: '本日のおすすめ', category: 'FOOD_DAILY'),
+        isFalse,
+      );
+    });
+
     test('通常ドリンクは物販ではない', () {
       expect(
         isMerchandiseByNameAndCategory(
@@ -137,6 +181,8 @@ void main() {
       expect(breakdown.timeCharge, 0);
       expect(breakdown.foodAndBeverageTotal, 3000);
       expect(breakdown.normalTotal, 3000);
+      expect(breakdown.eventAmount, 3000);
+      expect(breakdown.normalAmount, 0);
     });
 
     test('通常営業は時間料金を加算する', () {
@@ -159,6 +205,47 @@ void main() {
       expect(breakdown.timeCharge, 2400);
       expect(breakdown.foodAndBeverageTotal, 7400);
       expect(breakdown.merchandiseTotal, 0);
+      expect(breakdown.grandTotal, 7400);
+    });
+
+    test('会計対象時間を2時間に指定すると2時間30分相当から600円減額', () {
+      final summary = _summary(
+        billingMode: BusinessMode.normal,
+        totalTaxIncluded: 1000,
+        createdAt: DateTime(2026, 1, 1, 18, 0),
+        billingBilledMinutes: 120,
+      );
+      final items = [_item(name: '唐揚げ', category: 'FOOD', lineTotal: 1000)];
+      final breakdown = buildBillingBreakdown(
+        summary: summary,
+        items: items,
+        now: DateTime(2026, 1, 1, 20, 5),
+      );
+
+      expect(breakdown.autoBilledMinutes, 150);
+      expect(breakdown.billedMinutes, 120);
+      expect(breakdown.timeChargeAuto, 3000);
+      expect(breakdown.timeCharge, 2400);
+      expect(breakdown.timeChargeAdjustment, 600);
+      expect(breakdown.normalItemsTotal, 1000);
+      expect(breakdown.grandTotal, 3400);
+    });
+
+    test('イベント営業は会計対象時間の指定があっても時間料金なし', () {
+      final summary = _summary(
+        billingMode: BusinessMode.event,
+        totalTaxIncluded: 1000,
+        billingBilledMinutes: 60,
+      );
+      final breakdown = buildBillingBreakdown(
+        summary: summary,
+        items: [_item(name: 'ビール', category: 'BEER', lineTotal: 1000)],
+        now: DateTime(2026, 1, 1, 20, 0),
+      );
+
+      expect(breakdown.timeCharge, 0);
+      expect(breakdown.timeChargeAdjustment, 0);
+      expect(breakdown.isTimeAdjusted, isFalse);
     });
 
     test('物販は飲食合計から分離される', () {
@@ -194,8 +281,111 @@ void main() {
         now: DateTime(2026, 7, 7, 10, 0),
       );
 
-      expect(breakdown.timeChargePerPerson, calcTimeCharge(const Duration(minutes: 215)));
+      expect(
+        breakdown.timeChargePerPerson,
+        calcTimeCharge(const Duration(minutes: 215)),
+      );
       expect(breakdown.timeCharge, breakdown.timeChargePerPerson);
+    });
+
+    test('イベント→投げ放題切替は切替時刻から時間料金', () {
+      final summary = _summary(
+        billingMode: BusinessMode.normal,
+        totalTaxIncluded: 4620,
+        createdAt: DateTime(2026, 1, 1, 18, 0),
+        nomihodaiStartedAt: DateTime(2026, 1, 1, 19, 0),
+        switchedFromEvent: true,
+      );
+      final items = [
+        _item(
+          name: 'ビール',
+          category: 'BEER',
+          lineTotal: 4620,
+          orderedAt: DateTime(2026, 1, 1, 18, 30),
+          billedAs: BusinessMode.event,
+        ),
+      ];
+      final breakdown = buildBillingBreakdown(
+        summary: summary,
+        items: items,
+        now: DateTime(2026, 1, 1, 20, 0),
+      );
+
+      expect(breakdown.timeChargePerPerson, 1200);
+      expect(breakdown.timeCharge, 1200);
+      expect(breakdown.eventAmount, 4620);
+      expect(breakdown.normalAmount, 1200);
+      expect(breakdown.grandTotal, 5820);
+    });
+
+    test('切替後の注文は通常側に按分される', () {
+      final summary = _summary(
+        billingMode: BusinessMode.normal,
+        totalTaxIncluded: 5600,
+        createdAt: DateTime(2026, 1, 1, 18, 0),
+        nomihodaiStartedAt: DateTime(2026, 1, 1, 19, 0),
+        switchedFromEvent: true,
+      );
+      final items = [
+        _item(
+          name: 'ビール',
+          category: 'BEER',
+          lineTotal: 4620,
+          orderedAt: DateTime(2026, 1, 1, 18, 30),
+          billedAs: BusinessMode.event,
+        ),
+        _item(
+          name: 'テキーラ',
+          category: 'TEQUILA',
+          lineTotal: 980,
+          orderedAt: DateTime(2026, 1, 1, 19, 30),
+          billedAs: BusinessMode.normal,
+        ),
+      ];
+      final breakdown = buildBillingBreakdown(
+        summary: summary,
+        items: items,
+        now: DateTime(2026, 1, 1, 20, 0),
+      );
+
+      expect(breakdown.eventAmount, 4620);
+      expect(breakdown.normalItemsTotal, 980);
+      expect(breakdown.timeCharge, 1200);
+      expect(breakdown.normalAmount, 2180);
+      expect(breakdown.grandTotal, 6800);
+    });
+
+    test('旧明細はnomihodaiStartedAtで課金区分を推定する', () {
+      final summary = _summary(
+        billingMode: BusinessMode.normal,
+        totalTaxIncluded: 2000,
+        createdAt: DateTime(2026, 1, 1, 18, 0),
+        nomihodaiStartedAt: DateTime(2026, 1, 1, 19, 0),
+        switchedFromEvent: true,
+      );
+      final items = [
+        _item(
+          name: 'サワー',
+          category: 'SOUR',
+          lineTotal: 550,
+          orderedAt: DateTime(2026, 1, 1, 18, 20),
+        ),
+        _item(
+          name: 'テキーラ',
+          category: 'TEQUILA',
+          lineTotal: 1450,
+          orderedAt: DateTime(2026, 1, 1, 19, 10),
+        ),
+      ];
+      final breakdown = buildBillingBreakdown(
+        summary: summary,
+        items: items,
+        now: DateTime(2026, 1, 1, 19, 30),
+      );
+
+      expect(breakdown.eventAmount, 550);
+      expect(breakdown.normalItemsTotal, 1450);
+      expect(breakdown.timeCharge, 1200);
     });
   });
 }

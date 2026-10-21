@@ -15,6 +15,8 @@ import '../order_custom_item_dialogs.dart';
 import '../order_flow_state.dart';
 import 'order_event_tier_section.dart';
 
+enum _MenuTab { drink, food }
+
 class OrderMenuStep extends StatefulWidget {
   const OrderMenuStep({
     super.key,
@@ -45,6 +47,7 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
   );
   String? _activeCategory;
   bool _seeding = false;
+  _MenuTab _tab = _MenuTab.drink;
 
   Future<void> _openFoodOrderDialog() async {
     final form = await showDialog<CustomFoodOrderForm>(
@@ -82,6 +85,103 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: SegmentedButton<_MenuTab>(
+            segments: const [
+              ButtonSegment(
+                value: _MenuTab.drink,
+                label: Text('ドリンク'),
+                icon: Icon(Icons.local_bar),
+              ),
+              ButtonSegment(
+                value: _MenuTab.food,
+                label: Text('フード'),
+                icon: Icon(Icons.restaurant_menu),
+              ),
+            ],
+            selected: {_tab},
+            onSelectionChanged: (s) => setState(() => _tab = s.first),
+          ),
+        ),
+        Expanded(
+          child: _tab == _MenuTab.drink ? _buildDrinkTab() : _buildFoodTab(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFoodTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _FoodGoodsActionSection(
+          onOpenFood: _openFoodOrderDialog,
+          onOpenGoods: _openDartsGoodsDialog,
+        ),
+        Expanded(
+          child: StreamBuilder<List<MenuItem>>(
+            stream: widget.menuRepository.streamActiveFoodMenus(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('メニュー取得エラー: ${snapshot.error}'));
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final foods = snapshot.data!;
+              if (foods.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      '表示中のフードがありません。\n'
+                      '下の「フードメニューを管理」から登録するか、\n'
+                      '「その他フード」で手入力してください。',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                );
+              }
+              return GridView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: foods.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: _menuGridAspectRatio,
+                ),
+                itemBuilder: (context, index) => _MenuGridButton(
+                  item: foods[index],
+                  currency: _currency,
+                  onPressed: widget.onMenuSelected,
+                ),
+              );
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: TextButton.icon(
+            onPressed: () => Navigator.pushNamed(
+              context,
+              MenuEditPage.routeName,
+              arguments: MenuRegisterKind.food,
+            ),
+            icon: const Icon(Icons.edit_note),
+            label: const Text('フードメニューを管理'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDrinkTab() {
     return StreamBuilder<List<MenuItem>>(
       stream: widget.menuRepository.streamActiveMenus(),
       builder: (context, snapshot) {
@@ -94,7 +194,6 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
         final menus = snapshot.data!;
         if (menus.isEmpty) {
           return _EmptyMenuState(
-            adminAuthService: widget.adminAuthService,
             menuRepository: widget.menuRepository,
             seeding: _seeding,
             onSeedingChanged: (v) => setState(() => _seeding = v),
@@ -141,8 +240,6 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
                 onCategoryChanged: (cat) =>
                     setState(() => _activeCategory = cat),
                 onMenuSelected: widget.onMenuSelected,
-                onOpenFood: _openFoodOrderDialog,
-                onOpenGoods: _openDartsGoodsDialog,
               );
             }
 
@@ -182,10 +279,6 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _FoodGoodsActionSection(
-                  onOpenFood: _openFoodOrderDialog,
-                  onOpenGoods: _openDartsGoodsDialog,
-                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                   child: Text(
@@ -205,7 +298,10 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
                       final cat = categories[index];
                       final selected = cat == _activeCategory;
                       return ChoiceChip(
-                        label: Text(normalModeCategoryLabel(cat)),
+                        label: Text(
+                          normalModeCategoryLabel(cat),
+                          style: _chipLabelStyle,
+                        ),
                         selected: selected,
                         onSelected: (_) =>
                             setState(() => _activeCategory = cat),
@@ -223,27 +319,13 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
                           crossAxisCount: 2,
                           mainAxisSpacing: 8,
                           crossAxisSpacing: 8,
-                          childAspectRatio: 2.2,
+                          childAspectRatio: _menuGridAspectRatio,
                         ),
-                    itemBuilder: (context, index) {
-                      final item = shown[index];
-                      return FilledButton.tonal(
-                        onPressed: () => widget.onMenuSelected(item),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              item.name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(_currency.format(item.priceTaxIncluded)),
-                          ],
-                        ),
-                      );
-                    },
+                    itemBuilder: (context, index) => _MenuGridButton(
+                      item: shown[index],
+                      currency: _currency,
+                      onPressed: widget.onMenuSelected,
+                    ),
                   ),
                 ),
               ],
@@ -262,8 +344,6 @@ class _EventMenuLayout extends StatefulWidget {
     required this.activeCategory,
     required this.onCategoryChanged,
     required this.onMenuSelected,
-    required this.onOpenFood,
-    required this.onOpenGoods,
   });
 
   final NumberFormat currency;
@@ -271,8 +351,6 @@ class _EventMenuLayout extends StatefulWidget {
   final String? activeCategory;
   final ValueChanged<String> onCategoryChanged;
   final ValueChanged<MenuItem> onMenuSelected;
-  final VoidCallback onOpenFood;
-  final VoidCallback onOpenGoods;
 
   @override
   State<_EventMenuLayout> createState() => _EventMenuLayoutState();
@@ -336,10 +414,6 @@ class _EventMenuLayoutState extends State<_EventMenuLayout> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _FoodGoodsActionSection(
-          onOpenFood: widget.onOpenFood,
-          onOpenGoods: widget.onOpenGoods,
-        ),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.only(bottom: 16),
@@ -366,7 +440,10 @@ class _EventMenuLayoutState extends State<_EventMenuLayout> {
                       final cat = categories[index];
                       final selected = cat == _activeCategory;
                       return ChoiceChip(
-                        label: Text(eventIndividualDisplayCategoryLabel(cat)),
+                        label: Text(
+                          eventIndividualDisplayCategoryLabel(cat),
+                          style: _chipLabelStyle,
+                        ),
                         selected: selected,
                         onSelected: (_) {
                           setState(() => _activeCategory = cat);
@@ -386,33 +463,65 @@ class _EventMenuLayoutState extends State<_EventMenuLayout> {
                     crossAxisCount: 2,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
-                    childAspectRatio: 2.2,
+                    childAspectRatio: _menuGridAspectRatio,
                   ),
-                  itemBuilder: (context, index) {
-                    final item = _shownIndividualMenus[index];
-                    return FilledButton.tonal(
-                      onPressed: () => widget.onMenuSelected(item),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            item.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(widget.currency.format(item.priceTaxIncluded)),
-                        ],
-                      ),
-                    );
-                  },
+                  itemBuilder: (context, index) => _MenuGridButton(
+                    item: _shownIndividualMenus[index],
+                    currency: widget.currency,
+                    onPressed: widget.onMenuSelected,
+                  ),
                 ),
               ],
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+const _menuGridAspectRatio = 2.0;
+const _chipLabelStyle = TextStyle(fontSize: 15, fontWeight: FontWeight.w700);
+
+class _MenuGridButton extends StatelessWidget {
+  const _MenuGridButton({
+    required this.item,
+    required this.currency,
+    required this.onPressed,
+  });
+
+  final MenuItem item;
+  final NumberFormat currency;
+  final ValueChanged<MenuItem> onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.tonal(
+      onPressed: () => onPressed(item),
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            item.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            currency.format(item.priceTaxIncluded),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -447,35 +556,40 @@ class _FoodGoodsActionRow extends StatelessWidget {
   final VoidCallback onOpenFood;
   final VoidCallback onOpenGoods;
 
-  static final _buttonStyle = FilledButton.styleFrom(
-    minimumSize: const Size(0, 44),
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-  );
-
   @override
   Widget build(BuildContext context) {
-    final labelStyle = Theme.of(context).textTheme.labelMedium?.copyWith(
-      fontWeight: FontWeight.w600,
+    final colors = Theme.of(context).colorScheme;
+    final buttonStyle = OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 52),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      backgroundColor: Colors.white,
+      foregroundColor: colors.onSurface,
+      side: BorderSide(color: colors.primary, width: 2),
+      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
     );
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: FilledButton.icon(
+            child: OutlinedButton.icon(
               onPressed: onOpenFood,
-              style: _buttonStyle,
-              icon: const Icon(Icons.restaurant_menu, size: 18),
-              label: Text('フード追加', style: labelStyle),
+              style: buttonStyle,
+              icon: Icon(Icons.restaurant_menu, size: 20, color: colors.primary),
+              label: const Text('その他フード'),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: FilledButton.icon(
+            child: OutlinedButton.icon(
               onPressed: onOpenGoods,
-              style: _buttonStyle,
-              icon: const Icon(Icons.shopping_bag_outlined, size: 18),
-              label: Text('グッズ販売', style: labelStyle),
+              style: buttonStyle,
+              icon: Icon(
+                Icons.shopping_bag_outlined,
+                size: 20,
+                color: colors.primary,
+              ),
+              label: const Text('グッズ販売'),
             ),
           ),
         ],
@@ -486,79 +600,55 @@ class _FoodGoodsActionRow extends StatelessWidget {
 
 class _EmptyMenuState extends StatelessWidget {
   const _EmptyMenuState({
-    required this.adminAuthService,
     required this.menuRepository,
     required this.seeding,
     required this.onSeedingChanged,
   });
 
-  final AdminAuthService adminAuthService;
   final MenuRepository menuRepository;
   final bool seeding;
   final ValueChanged<bool> onSeedingChanged;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: adminAuthService.isCurrentUserAnonymous
-          ? Future<bool>.value(false)
-          : adminAuthService.isCurrentUserAdmin(),
-      builder: (context, adminSnapshot) {
-        final isAdmin = adminSnapshot.data == true;
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('メニュー未登録です'),
-                const SizedBox(height: 8),
-                Text(
-                  isAdmin
-                      ? '管理者として初期メニューを登録できます'
-                      : '管理者ログイン後に初期メニューを登録できます',
-                  style: Theme.of(context).textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: (seeding || !isAdmin)
-                      ? null
-                      : () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          onSeedingChanged(true);
-                          try {
-                            await menuRepository.seedMenusFromAssetIfEmpty();
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('初期メニューを登録しました'),
-                              ),
-                            );
-                          } catch (error) {
-                            messenger.showSnackBar(
-                              SnackBar(content: Text('登録失敗: $error')),
-                            );
-                          } finally {
-                            onSeedingChanged(false);
-                          }
-                        },
-                  child: Text(seeding ? '登録中...' : '初期メニューを登録'),
-                ),
-                if (!isAdmin) ...[
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => Navigator.pushNamed(
-                      context,
-                      MenuEditPage.routeName,
-                    ),
-                    child: const Text('管理者ログインへ（メニュー編集）'),
-                  ),
-                ],
-              ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('メニュー未登録です'),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: seeding
+                  ? null
+                  : () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      onSeedingChanged(true);
+                      try {
+                        await menuRepository.seedMenusFromAssetIfEmpty();
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('初期メニューを登録しました')),
+                        );
+                      } catch (error) {
+                        messenger.showSnackBar(
+                          SnackBar(content: Text('登録失敗: $error')),
+                        );
+                      } finally {
+                        onSeedingChanged(false);
+                      }
+                    },
+              child: Text(seeding ? '登録中...' : '初期メニューを登録'),
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () =>
+                  Navigator.pushNamed(context, MenuEditPage.routeName),
+              child: const Text('メニュー管理へ'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

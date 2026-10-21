@@ -13,10 +13,16 @@ int checkDisplayTotal({
     items: items,
     now: now ?? DateTime.now(),
   );
-  final isNormal = summary.billingMode == BusinessMode.normal;
   final isPaid = summary.status == 'paid';
   if (isPaid && summary.finalAmount != null) {
     return summary.finalAmount!;
   }
-  return isNormal ? breakdown.normalTotal : summary.totalTaxIncluded;
+  // イベントのみなら明細合計、通常（切替含む）なら明細＋時間料金。
+  if (summary.billingMode == BusinessMode.normal ||
+      summary.switchedFromEvent) {
+    return breakdown.grandTotal;
+  }
+  return summary.totalTaxIncluded > 0
+      ? summary.totalTaxIncluded
+      : breakdown.eventItemsTotal;
 }

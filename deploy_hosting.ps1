@@ -16,6 +16,16 @@ Write-Host "== flutter build web ==" -ForegroundColor Cyan
 flutter build web --dart-define-from-file=$StoreConfigFile
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+$BuildIndexHtml = Join-Path $PSScriptRoot "build\web\index.html"
+& (Join-Path $PSScriptRoot "tool\inject_hosting_runtime_config.ps1") `
+  -BuildIndexHtml $BuildIndexHtml `
+  -StoreConfigFile $StoreConfigFile
+
+Copy-Item `
+  (Join-Path $PSScriptRoot "tool\hosting_service_worker.js") `
+  (Join-Path $PSScriptRoot "build\web\flutter_service_worker.js") `
+  -Force
+
 Write-Host "`n== firebase deploy (hosting) ==" -ForegroundColor Cyan
 firebase deploy --only hosting
 exit $LASTEXITCODE

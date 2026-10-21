@@ -10,7 +10,7 @@ import '../shared/check_status_compact_card.dart';
 import '../shared/person_picker_list.dart';
 import 'open_order_flow.dart';
 import 'order_flow_state.dart';
-import 'order_items_sheet.dart';
+import 'widgets/order_items_list.dart';
 
 const _orderCtaColor = Color(0xFFEA580C);
 
@@ -34,6 +34,18 @@ class _OrderPageState extends State<OrderPage> {
   final Map<String, DraftOrderLine> _draftOrders = {};
   bool _removingLine = false;
   bool _updatingLine = false;
+  bool _didReadArgs = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didReadArgs) return;
+    _didReadArgs = true;
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is PersonOption) {
+      _selectedPerson = args;
+    }
+  }
 
   Future<void> _confirmRemoveCheckItem(CheckItem item) async {
     final person = _selectedPerson;
@@ -103,6 +115,7 @@ class _OrderPageState extends State<OrderPage> {
     final result = await openOrderFlow(
       context,
       existingDraft: _draftOrders.isEmpty ? null : _draftOrders,
+      preselectedPerson: _selectedPerson,
     );
     if (!mounted || result == null) return;
     setState(() {
@@ -112,22 +125,6 @@ class _OrderPageState extends State<OrderPage> {
         ..addAll(result.draftOrders);
     });
     showOrderFlowResultSnackBar(context, result);
-  }
-
-  Future<void> _openOrderItems({
-    required List<CheckItem> registered,
-    required CheckSummary summary,
-  }) async {
-    await showOrderItemsSheet(
-      context,
-      registered: registered,
-      draftOrders: _draftOrders,
-      currency: _currency,
-      isPaid: summary.status == 'paid',
-      lineBusy: _removingLine || _updatingLine,
-      onEdit: _editCheckItemQty,
-      onDelete: _confirmRemoveCheckItem,
-    );
   }
 
   void _selectPerson(PersonOption person) {
@@ -190,7 +187,7 @@ class _OrderPageState extends State<OrderPage> {
                           onPressed: () => setState(() {
                             _selectedPerson = null;
                           }),
-                          child: const Text('変更'),
+                          child: const Text('伝票切り替え'),
                         ),
                       ),
                     ),
@@ -265,12 +262,11 @@ class _OrderPageState extends State<OrderPage> {
               return const Center(child: CircularProgressIndicator());
             }
             final registered = itemsSnap.data!;
-            final itemCount =
-                registered.fold(0, (s, i) => s + i.qty) + _draftCount;
 
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 8),
                   CheckStatusCompactCard(
@@ -281,20 +277,15 @@ class _OrderPageState extends State<OrderPage> {
                     draftTotal: _draftTotal,
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    height: 48,
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _openOrderItems(
-                        registered: registered,
-                        summary: summary,
-                      ),
-                      icon: const Icon(Icons.list_alt_outlined),
-                      label: Text(
-                        itemCount > 0
-                            ? '注文明細を見る（$itemCount 点）'
-                            : '注文明細を見る',
-                      ),
+                  Expanded(
+                    child: OrderItemsList(
+                      registered: registered,
+                      draftOrders: _draftOrders,
+                      currency: _currency,
+                      isPaid: summary.status == 'paid',
+                      lineBusy: _removingLine || _updatingLine,
+                      onEdit: _editCheckItemQty,
+                      onDelete: _confirmRemoveCheckItem,
                     ),
                   ),
                 ],

@@ -48,3 +48,8 @@ app.*.map.json
 firebase.web.dev.json
 firebase.web.*.json
 !firebase.web.template.json
+
+# FlutterFire CLI が生成する設定（APIキーを含むためコミットしない）
+lib/firebase_options.dart
+**/google-services.json
+**/GoogleService-Info.plist

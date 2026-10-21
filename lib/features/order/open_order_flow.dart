@@ -3,20 +3,25 @@ import 'package:flutter/material.dart';
 import '../../core/admin_auth_service.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../data/repositories/menu_repository.dart';
+import '../../models/person_option.dart';
 import 'order_flow_sheet.dart';
 import 'order_flow_state.dart';
 
-/// 注文フロー（対象者選択 → メニュー → 数量 → 確認）をポップアップで開く。
+/// 注文フロー（人選択または固定 → メニュー＋カート）をポップアップで開く。
 Future<OrderFlowResult?> openOrderFlow(
   BuildContext context, {
   Map<String, DraftOrderLine>? existingDraft,
+  PersonOption? preselectedPerson,
 }) {
   return showOrderFlowSheet(
     context,
     checkRepository: CheckRepository(),
     menuRepository: MenuRepository(),
     adminAuthService: AdminAuthService(),
-    initialState: OrderFlowState(draftOrders: existingDraft),
+    initialState: OrderFlowState(
+      person: preselectedPerson,
+      draftOrders: existingDraft,
+    ),
   );
 }
 

@@ -4,6 +4,18 @@ import '../../core/business_mode.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../data/repositories/customer_repository.dart';
 
+class VisitRegisterResult {
+  const VisitRegisterResult({
+    required this.checkId,
+    required this.customerName,
+    required this.billingMode,
+  });
+
+  final String checkId;
+  final String customerName;
+  final BusinessMode billingMode;
+}
+
 class VisitRegisterPage extends StatefulWidget {
   const VisitRegisterPage({super.key});
 
@@ -48,13 +60,20 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
     setState(() => _saving = true);
     try {
       await _customerRepository.createCustomerIfNeeded(name);
-      await _checkRepository.createOpenCheck(
+      final checkId = await _checkRepository.createOpenCheck(
         customerName: name,
         billingMode: billingMode,
         peopleCount: _peopleCount,
       );
       if (mounted) {
-        Navigator.pop(context, name);
+        Navigator.pop(
+          context,
+          VisitRegisterResult(
+            checkId: checkId,
+            customerName: name,
+            billingMode: billingMode,
+          ),
+        );
       }
     } catch (error) {
       if (mounted) {

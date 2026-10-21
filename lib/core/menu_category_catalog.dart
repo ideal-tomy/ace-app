@@ -33,6 +33,8 @@ class MenuCategoryCatalog {
     'SHOCHO': '焼酎',
     'CHAMPAGNE': 'シャンパン',
     'OTHERS': 'アザー',
+    'FOOD': 'フード',
+    'FOOD_DAILY': 'フード（手打ち）',
   };
 
   static String labelFor(String categoryKey) =>

@@ -2,8 +2,9 @@ import '../../core/menu_category_catalog.dart';
 import '../../models/menu_item.dart';
 import '../../models/person_option.dart';
 
+export '../../core/food_menu.dart' show kFoodDailyCategory;
+
 const kTequilaOthersCategory = 'TEQUILA_OTHERS';
-const kFoodDailyCategory = 'FOOD_DAILY';
 const kGoodsCategory = 'DARTS_GOODS';
 
 class DraftOrderLine {

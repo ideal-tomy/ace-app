@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../../core/business_mode.dart';
 import '../../models/person_option.dart';
+import 'search_clear_field.dart';
 
 /// 来店中の対象者を2カラムで選ぶ（多人数でも縦長になりにくい）。
 class PersonPickerList extends StatefulWidget {
@@ -81,13 +84,8 @@ class _PersonPickerListState extends State<PersonPickerList> {
               widget.padding.right,
               8,
             ),
-            child: TextField(
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                labelText: '名前で検索',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
+            child: SearchClearField(
+              labelText: '名前で検索',
               onChanged: (value) => setState(() => _keyword = value),
             ),
           ),
@@ -109,7 +107,7 @@ class _PersonPickerListState extends State<PersonPickerList> {
                     crossAxisCount: 2,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
-                    childAspectRatio: 2.6,
+                    childAspectRatio: 1.9,
                   ),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
@@ -123,33 +121,47 @@ class _PersonPickerListState extends State<PersonPickerList> {
                             horizontal: 12,
                             vertical: 10,
                           ),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              CircleAvatar(
-                                radius: 18,
-                                child: Text(
-                                  person.displayName.isNotEmpty
-                                      ? person.displayName.characters.first
-                                      : '?',
-                                  style: Theme.of(context).textTheme.labelLarge,
-                                ),
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 14,
+                                    child: Text(
+                                      person.displayName.isNotEmpty
+                                          ? person.displayName.characters.first
+                                          : '?',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.labelMedium,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      person.displayName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleSmall,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  person.displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style:
-                                      Theme.of(context).textTheme.titleSmall,
-                                ),
-                              ),
-                              Icon(
-                                Icons.chevron_right,
-                                size: 18,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
+                              const SizedBox(height: 6),
+                              _ModeBadge(person: person),
+                              const SizedBox(height: 2),
+                              Text(
+                                DateFormat('HH:mm').format(person.createdAt),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
                               ),
                             ],
                           ),
@@ -160,6 +172,36 @@ class _PersonPickerListState extends State<PersonPickerList> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+class _ModeBadge extends StatelessWidget {
+  const _ModeBadge({required this.person});
+
+  final PersonOption person;
+
+  @override
+  Widget build(BuildContext context) {
+    final isNormal = person.billingMode == BusinessMode.normal;
+    final color = isNormal
+        ? const Color(0xFF0F766E)
+        : const Color(0xFFEA580C);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        person.modeBadgeLabel,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

@@ -21,7 +21,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool _canOperate = false;
 
   Future<void> _refreshAccessState() async {
-    final canOperate = await _adminAuthService.isCurrentUserAdmin();
+    final canOperate = await _adminAuthService.canAccessAccounting();
     if (mounted) setState(() => _canOperate = canOperate);
   }
 

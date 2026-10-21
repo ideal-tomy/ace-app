@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/billing_rules.dart';
 import '../../core/business_mode.dart';
+import '../../core/payment_method.dart';
 import '../../models/check_item.dart';
 import '../../models/check_summary.dart';
 import 'check_billing_utils.dart';
@@ -44,9 +45,19 @@ class CheckBillingSummaryCard extends StatelessWidget {
               summary.separateFinal ??
               breakdown.merchandiseTotal)
         : breakdown.merchandiseTotal;
-    final foodAndBeverage = isPaid
-        ? (total - merchandise).clamp(0, total)
-        : breakdown.foodAndBeverageTotal;
+    final eventAmount = isPaid
+        ? (summary.eventAmountFinal ?? breakdown.eventAmount)
+        : breakdown.eventAmount;
+    final normalItems = isPaid
+        ? ((summary.normalAmountFinal ?? breakdown.normalAmount) - timeCharge)
+            .clamp(0, 1 << 30)
+        : breakdown.normalItemsTotal;
+    final nomihodaiAt = summary.effectiveNomihodaiStartedAt;
+    final timeAdjustment = isPaid
+        ? (summary.timeChargeAdjustmentAmount ?? 0)
+        : breakdown.timeChargeAdjustment;
+    final billedMinutesFinal = summary.billingBilledMinutesFinal;
+    final departedAt = summary.departedAt;
 
     return Card(
       child: Padding(
@@ -63,18 +74,43 @@ class CheckBillingSummaryCard extends StatelessWidget {
                     summary.customerNameSnapshot,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  Text('営業モード: ${summary.billingMode.label}'),
+                  Text('営業モード: ${summary.modeBadgeLabel}'),
                   Text(
                     '登録時間: ${DateFormat('yyyy/MM/dd HH:mm').format(summary.createdAt)}',
                   ),
-                  const SizedBox(height: 4),
-                  Text('飲食: ${currency.format(foodAndBeverage)}'),
-                  Text('物販: ${currency.format(merchandise)}'),
-                  if (isNormal)
+                  if (summary.switchedFromEvent && nomihodaiAt != null)
                     Text(
-                      '時間料金(飲食に含む): ${currency.format(timeCharge)} '
+                      '投げ放題開始: ${DateFormat('HH:mm').format(nomihodaiAt)}',
+                    ),
+                  if (isPaid && departedAt != null)
+                    Text(
+                      '退店: ${DateFormat('MM/dd HH:mm').format(departedAt)}'
+                      '（滞在 ${formatStayDuration(departedAt.difference(summary.createdAt))}）',
+                    ),
+                  if (isPaid && billedMinutesFinal != null)
+                    Text(
+                      '会計対象時間: '
+                      '${formatStayDuration(Duration(minutes: billedMinutesFinal))}',
+                    ),
+                  const SizedBox(height: 4),
+                  if (eventAmount > 0)
+                    Text('イベント注文: ${currency.format(eventAmount)}'),
+                  if (isNormal && timeCharge > 0)
+                    Text(
+                      '投げ放題時間料金: ${currency.format(timeCharge)} '
                       '(${currency.format(breakdown.timeChargePerPerson)} × ${breakdown.peopleCount}名)',
                     ),
+                  if (isNormal && timeAdjustment > 0)
+                    Text('時間調整: −${currency.format(timeAdjustment)}'),
+                  if (normalItems > 0)
+                    Text('切替後・通常注文: ${currency.format(normalItems)}'),
+                  if (merchandise > 0)
+                    Text('物販: ${currency.format(merchandise)}'),
+                  if (eventAmount == 0 &&
+                      normalItems == 0 &&
+                      timeCharge == 0 &&
+                      merchandise == 0)
+                    Text('飲食: ${currency.format(0)}'),
                   if (isCappedAtClosing)
                     Text(
                       '※閉店時刻(3:00)時点で時間料金を確定',
@@ -86,6 +122,8 @@ class CheckBillingSummaryCard extends StatelessWidget {
                     '内税10%: ${currency.format(summary.taxAmount)}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                  if (summary.paymentMethod != null)
+                    Text('支払: ${summary.paymentMethod!.label}'),
                   if (isPaid) const Text('※会計確定済み（固定金額）'),
                 ],
               ),

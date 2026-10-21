@@ -53,6 +53,9 @@ Legacy top-level `admins/{email}` documents are optional and kept for backward c
 
 - **Event (`event`)**: order-based billing; all menu items are available; no time charge.
 - **Normal (`normal`)**: time-based billing; menu shows exception drinks only (tequila, champagne, etc.); food and merchandise can be added manually.
+- Mid-visit switch from event to normal (nomihodai) is supported on the same check; time charge starts at `nomihodaiStartedAt`.
+- Mistaken open checks can be voided (`status: voided`) instead of deleted; voided checks do not block daily closing.
+- Checkout requires a payment method: `cash` / `card` / `other`.
 
 ## Troubleshooting permission-denied
 

@@ -85,10 +85,17 @@ class _TierRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
-          width: 96,
-          child: Text(
-            def.label,
-            style: Theme.of(context).textTheme.bodyMedium,
+          width: 124,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              def.label,
+              maxLines: 1,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ),
         Expanded(
@@ -117,8 +124,9 @@ class _TierPriceButton extends StatelessWidget {
     return FilledButton.tonal(
       onPressed: onPressed,
       style: FilledButton.styleFrom(
-        minimumSize: const Size(72, 40),
+        minimumSize: const Size(72, 44),
         padding: const EdgeInsets.symmetric(horizontal: 12),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
       ),
       child: Text(label),
     );

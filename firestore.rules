@@ -2,6 +2,10 @@ rules_version='2'
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Daily closing data model:
+    // stores/{storeId}/daily_closings/{yyyy-MM-dd} stores immutable daily totals.
+    // Its checks/{checkId} subcollection stores immutable checkout snapshots
+    // used to reproduce the closing CSV after the source check changes.
     function isSignedIn() {
       return request.auth != null;
     }
@@ -45,6 +49,117 @@ service cloud.firestore {
         resource.data.createdBy == request.auth.uid;
     }
 
+    function isValidMenuCreate(data) {
+      return data.keys().hasOnly(['name', 'category', 'priceTaxIncluded', 'isActive', 'sortOrder']) &&
+        data.keys().hasAll(['name', 'category', 'priceTaxIncluded', 'isActive', 'sortOrder']) &&
+        data.category is string && data.category.size() > 0 && data.category.size() <= 50 &&
+        data.category != 'FOOD_DAILY' &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 50 &&
+        data.priceTaxIncluded is int &&
+        data.priceTaxIncluded >= 0 && data.priceTaxIncluded <= 1000000 &&
+        data.isActive is bool &&
+        data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 1000000;
+    }
+
+    function isValidCheckFinalize() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return before.status == 'open' && after.status == 'paid' &&
+        after.diff(before).affectedKeys().hasOnly([
+          'finalAmount', 'timeChargeFinal', 'merchandiseFinal', 'separateFinal',
+          'eventAmountFinal', 'normalAmountFinal', 'paymentMethod', 'status',
+          'closedAt', 'businessDate', 'businessDateKey', 'departedAt',
+          'actualStayMinutesFinal', 'billingBilledMinutesFinal',
+          'timeChargeAutoFinal', 'timeChargeAdjustmentAmount'
+        ]) &&
+        after.finalAmount is int && after.finalAmount >= 0 &&
+        after.eventAmountFinal is int && after.eventAmountFinal >= 0 &&
+        after.normalAmountFinal is int && after.normalAmountFinal >= 0 &&
+        after.finalAmount == after.eventAmountFinal + after.normalAmountFinal &&
+        after.timeChargeFinal is int && after.timeChargeFinal >= 0 &&
+        after.timeChargeAutoFinal is int &&
+        after.timeChargeAdjustmentAmount is int &&
+        after.timeChargeAdjustmentAmount >= 0 &&
+        after.timeChargeAutoFinal == after.timeChargeFinal + after.timeChargeAdjustmentAmount &&
+        after.paymentMethod in ['cash', 'card', 'other'] &&
+        after.closedAt == request.time &&
+        after.departedAt is timestamp &&
+        after.actualStayMinutesFinal is int && after.actualStayMinutesFinal >= 0 &&
+        (after.billingBilledMinutesFinal == null || after.billingBilledMinutesFinal is int);
+    }
+
+    function isDepartedAtOnlyUpdate() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return before.status == 'paid' && after.status == 'paid' &&
+        after.diff(before).affectedKeys().hasOnly(['departedAt']) &&
+        after.departedAt is timestamp &&
+        after.departedAt >= before.createdAt &&
+        after.departedAt <= request.time;
+    }
+
+    function isValidVisitCorrection(data) {
+      return data.keys().hasOnly(['type', 'fromAt', 'toAt', 'correctedAt', 'correctedBy']) &&
+        data.type == 'departed_at' &&
+        (data.fromAt == null || data.fromAt is timestamp) &&
+        data.toAt is timestamp &&
+        data.correctedAt == request.time &&
+        data.correctedBy == request.auth.uid;
+    }
+
+    function isValidDailyClosing(data, closingId) {
+      return data.keys().hasOnly([
+          'businessDate', 'businessDateKey', 'status',
+          'totalSales', 'eventSales', 'normalSales',
+          'checkCount', 'eventCheckCount', 'normalCheckCount',
+          'guestCount', 'eventGuestCount', 'normalGuestCount',
+          'closedAt', 'closedBy', 'schemaVersion'
+        ]) &&
+        data.businessDate is timestamp &&
+        data.businessDateKey is string &&
+        data.businessDateKey == closingId &&
+        data.businessDateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        data.status == 'closed' &&
+        data.totalSales is int && data.totalSales >= 0 && data.totalSales <= 1000000000 &&
+        data.eventSales is int && data.eventSales >= 0 &&
+        data.normalSales is int && data.normalSales >= 0 &&
+        data.totalSales == data.eventSales + data.normalSales &&
+        data.checkCount is int && data.checkCount > 0 && data.checkCount <= 450 &&
+        data.eventCheckCount is int && data.eventCheckCount >= 0 &&
+        data.normalCheckCount is int && data.normalCheckCount >= 0 &&
+        data.checkCount == data.eventCheckCount + data.normalCheckCount &&
+        data.guestCount is int && data.guestCount > 0 && data.guestCount <= 10000 &&
+        data.eventGuestCount is int && data.eventGuestCount >= 0 &&
+        data.normalGuestCount is int && data.normalGuestCount >= 0 &&
+        data.guestCount == data.eventGuestCount + data.normalGuestCount &&
+        data.closedAt is timestamp &&
+        data.closedAt > request.time - duration.value(5, 'm') &&
+        data.closedAt <= request.time &&
+        data.closedBy is string && data.closedBy == request.auth.uid &&
+        data.schemaVersion == 1;
+    }
+
+    function isValidDailyClosingCheck(data, closingId, checkId) {
+      return data.keys().hasOnly([
+          'businessDateKey', 'checkId', 'customerName', 'billingMode',
+          'peopleCount', 'finalAmount', 'taxAmount', 'closedAt',
+          'paymentMethod', 'eventAmount', 'normalAmount'
+        ]) &&
+        data.businessDateKey is string && data.businessDateKey == closingId &&
+        data.checkId is string && data.checkId == checkId && data.checkId.size() <= 150 &&
+        data.customerName is string &&
+        data.customerName.size() > 0 && data.customerName.size() <= 100 &&
+        data.billingMode in ['event', 'normal'] &&
+        data.peopleCount is int && data.peopleCount > 0 && data.peopleCount <= 1000 &&
+        data.finalAmount is int && data.finalAmount >= 0 && data.finalAmount <= 100000000 &&
+        data.taxAmount is int && data.taxAmount >= 0 && data.taxAmount <= data.finalAmount &&
+        data.closedAt is timestamp &&
+        data.paymentMethod in ['cash', 'card', 'other'] &&
+        data.eventAmount is int && data.eventAmount >= 0 &&
+        data.normalAmount is int && data.normalAmount >= 0 &&
+        data.finalAmount == data.eventAmount + data.normalAmount;
+    }
+
     match /stores/{storeId} {
       // 管理情報は店舗管理者のみが更新可能。
       allow read: if isSignedIn();
@@ -60,9 +175,15 @@ service cloud.firestore {
         allow create, update, delete: if isStoreAdmin(storeId);
       }
 
+      // メニューはログイン済みスタッフ全員が登録・休止切替・削除できる。
+      // 名前・単価・カテゴリの変更は不可（削除して登録し直す運用）。
       match /menus/{menuId} {
         allow read: if isSignedIn();
-        allow create, update, delete: if isStoreAdmin(storeId);
+        allow create: if isSignedIn() && isValidMenuCreate(request.resource.data);
+        allow update: if isSignedIn() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive']) &&
+          request.resource.data.isActive is bool;
+        allow delete: if isSignedIn();
       }
 
       match /customers/{customerId} {
@@ -74,24 +195,53 @@ service cloud.firestore {
         allow create: if canAccounting(storeId) &&
           request.resource.data.status == 'open';
         allow update: if canAccounting(storeId) && (
-          // 通常スタッフは open の伝票を open のまま更新可能（注文追加/取消の合計更新など）。
+          // open の伝票を open のまま更新可能（注文追加/取消の合計更新、会計対象時間の指定など）。
           (
             resource.data.status == 'open' &&
             request.resource.data.status == 'open'
           ) ||
-          // 支払い確定（status変更）は管理者のみ許可。
-          isStoreAdmin(storeId)
+          // 誤作成伝票の取消（open → voided）。再オープンは不可。
+          (
+            resource.data.status == 'open' &&
+            request.resource.data.status == 'voided'
+          ) ||
+          // 会計確定（open → paid）。確定値の整合性を検証する。
+          isValidCheckFinalize() ||
+          // 会計済み伝票の退店時刻の訂正。金額・会計対象時間は変更不可。
+          isDepartedAtOnlyUpdate()
         );
         allow delete: if isStoreAdmin(storeId);
 
         match /items/{itemId} {
           allow read, write: if canAccounting(storeId);
         }
+
+        match /visit_corrections/{correctionId} {
+          allow read: if canAccounting(storeId);
+          allow create: if canAccounting(storeId) &&
+            isValidVisitCorrection(request.resource.data);
+          allow update, delete: if false;
+        }
       }
 
       match /accounting_entries/{entryId} {
         allow read, create, update: if canAccounting(storeId);
         allow delete: if isStoreAdmin(storeId);
+      }
+
+      match /daily_closings/{closingId} {
+        allow read: if isStoreAdmin(storeId);
+        allow create: if isStoreAdmin(storeId) &&
+          isValidDailyClosing(request.resource.data, closingId);
+        allow update, delete: if false;
+
+        match /checks/{checkId} {
+          allow read: if isStoreAdmin(storeId);
+          allow create: if isStoreAdmin(storeId) &&
+            isValidDailyClosingCheck(request.resource.data, closingId, checkId) &&
+            getAfter(/databases/$(database)/documents/stores/$(storeId)/daily_closings/$(closingId)).data.closedBy == request.auth.uid;
+          allow update, delete: if false;
+        }
       }
 
       match /expense_entries/{entryId} {

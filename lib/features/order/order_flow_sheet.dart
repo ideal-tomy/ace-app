@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/admin_auth_service.dart';
 import '../../data/repositories/check_repository.dart';
@@ -6,10 +7,8 @@ import '../../data/repositories/menu_repository.dart';
 import '../../models/menu_item.dart';
 import '../../models/person_option.dart';
 import 'order_flow_state.dart';
-import 'widgets/order_confirm_step.dart';
 import 'widgets/order_menu_step.dart';
 import 'widgets/order_person_step.dart';
-import 'widgets/order_quantity_step.dart';
 
 const _orderCtaColor = Color(0xFFEA580C);
 
@@ -65,39 +64,22 @@ class OrderFlowSheet extends StatefulWidget {
 }
 
 class _OrderFlowSheetState extends State<OrderFlowSheet> {
-  static const _stepTitles = [
-    '誰の注文ですか？',
-    'メニューを選ぶ',
-    '数量を選ぶ',
-    '注文内容の確認',
-  ];
-
   late OrderFlowState _state;
-  late int _stepIndex;
+  bool _pickingPerson = false;
   bool _submitting = false;
+  bool _cartExpanded = false;
+
+  static final _currency = NumberFormat.currency(
+    locale: 'ja_JP',
+    symbol: '¥',
+    decimalDigits: 0,
+  );
 
   @override
   void initState() {
     super.initState();
     _state = widget.initialState.copyForSession();
-    _stepIndex = 0;
-  }
-
-  int get _displayStep => _stepIndex + 1;
-
-  String get _stepTitle => _stepTitles[_stepIndex];
-
-  void _goBack() {
-    if (_stepIndex <= 0) {
-      _close(submitted: false);
-      return;
-    }
-    setState(() {
-      if (_stepIndex == 2) {
-        _state.clearCurrentSelection();
-      }
-      _stepIndex--;
-    });
+    _pickingPerson = _state.person == null;
   }
 
   void _close({required bool submitted}) {
@@ -114,50 +96,44 @@ class _OrderFlowSheetState extends State<OrderFlowSheet> {
   void _onPersonSelected(PersonOption person) {
     setState(() {
       _state.person = person;
-      _stepIndex = 1;
+      _pickingPerson = false;
     });
   }
 
-  void _onMenuSelected(MenuItem menu) {
+  void _addMenuToCart(MenuItem menu) {
+    final existing = _state.draftOrders[menu.id];
     setState(() {
-      _state.selectMenu(menu);
-      _stepIndex = 2;
+      if (existing == null) {
+        _state.draftOrders[menu.id] = DraftOrderLine(menu: menu, qty: 1);
+      } else {
+        _state.draftOrders[menu.id] = existing.copyWith(qty: existing.qty + 1);
+      }
+      _cartExpanded = true;
     });
   }
 
-  void _onCustomMenuSelected(MenuItem menu) {
+  void _setQty(String menuId, int qty) {
     setState(() {
-      _state.selectMenu(menu);
-      _stepIndex = 2;
+      if (qty <= 0) {
+        _state.draftOrders.remove(menuId);
+      } else {
+        final line = _state.draftOrders[menuId];
+        if (line != null) {
+          _state.draftOrders[menuId] = line.copyWith(qty: qty);
+        }
+      }
     });
-  }
-
-  void _onQuantityNext(int qty) {
-    setState(() {
-      _state.qty = qty;
-      _stepIndex = 3;
-    });
-  }
-
-  void _onContinueOrdering() {
-    _state.addCurrentLineToDraft();
-    setState(() => _stepIndex = 1);
   }
 
   Future<void> _onSubmitOrder() async {
     final person = _state.person;
     if (person == null || _submitting) return;
-
-    final linesToSubmit = <DraftOrderLine>[
-      ..._state.draftOrders.values,
-      if (_state.selectedMenu != null)
-        DraftOrderLine(menu: _state.selectedMenu!, qty: _state.qty),
-    ];
-    if (linesToSubmit.isEmpty) return;
+    final lines = _state.draftOrders.values.toList();
+    if (lines.isEmpty) return;
 
     setState(() => _submitting = true);
     try {
-      for (final line in linesToSubmit) {
+      for (final line in lines) {
         await widget.checkRepository.addOrderItem(
           checkId: person.openCheckId,
           menu: line.menu,
@@ -186,143 +162,271 @@ class _OrderFlowSheetState extends State<OrderFlowSheet> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        _goBack();
+        if (!_pickingPerson && widget.initialState.person == null) {
+          setState(() => _pickingPerson = true);
+          return;
+        }
+        _close(submitted: false);
       },
       child: SizedBox(
-        height: screenHeight * 0.85,
+        height: screenHeight * 0.9,
         child: Column(
           children: [
             _FlowHeader(
-              title: _stepTitle,
-              stepLabel: '$_displayStep/4',
-              personName: _stepIndex > 0 ? person?.displayName : null,
-              onBack: _goBack,
+              title: _pickingPerson ? '誰の注文ですか？' : 'メニューを選ぶ',
+              personName: !_pickingPerson ? person?.displayName : null,
+              modeLabel: !_pickingPerson ? person?.modeBadgeLabel : null,
+              onBack: () {
+                if (!_pickingPerson && widget.initialState.person == null) {
+                  setState(() => _pickingPerson = true);
+                  return;
+                }
+                _close(submitted: false);
+              },
               onClose: () => _close(submitted: false),
+              onChangePerson: !_pickingPerson && person != null
+                  ? () => setState(() => _pickingPerson = true)
+                  : null,
             ),
             const Divider(height: 1),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: _buildStepContent(),
-              ),
+              child: _pickingPerson
+                  ? OrderPersonStep(
+                      checkRepository: widget.checkRepository,
+                      onPersonSelected: _onPersonSelected,
+                    )
+                  : (person == null
+                      ? const Center(child: Text('来店客が選択されていません'))
+                      : OrderMenuStep(
+                          person: person,
+                          checkRepository: widget.checkRepository,
+                          menuRepository: widget.menuRepository,
+                          adminAuthService: widget.adminAuthService,
+                          onMenuSelected: _addMenuToCart,
+                          onCustomMenuSelected: _addMenuToCart,
+                        )),
             ),
+            if (!_pickingPerson && person != null)
+              _CartBar(
+                draftOrders: _state.draftOrders,
+                expanded: _cartExpanded,
+                submitting: _submitting,
+                currency: _currency,
+                onToggleExpand: () =>
+                    setState(() => _cartExpanded = !_cartExpanded),
+                onQtyChanged: _setQty,
+                onSubmit: _onSubmitOrder,
+              ),
           ],
         ),
       ),
     );
-  }
-
-  Widget _buildStepContent() {
-    switch (_stepIndex) {
-      case 0:
-        return OrderPersonStep(
-          checkRepository: widget.checkRepository,
-          onPersonSelected: _onPersonSelected,
-        );
-      case 1:
-        final person = _state.person;
-        if (person == null) {
-          return const Center(child: Text('来店客が選択されていません'));
-        }
-        return OrderMenuStep(
-          person: person,
-          checkRepository: widget.checkRepository,
-          menuRepository: widget.menuRepository,
-          adminAuthService: widget.adminAuthService,
-          onMenuSelected: _onMenuSelected,
-          onCustomMenuSelected: _onCustomMenuSelected,
-        );
-      case 2:
-        final menu = _state.selectedMenu;
-        if (menu == null) {
-          return const Center(child: Text('メニューが選択されていません'));
-        }
-        return OrderQuantityStep(
-          menu: menu,
-          initialQty: _state.qty,
-          onNext: _onQuantityNext,
-        );
-      case 3:
-        final menu = _state.selectedMenu;
-        if (menu == null) {
-          return const Center(child: Text('メニューが選択されていません'));
-        }
-        return OrderConfirmStep(
-          state: _state,
-          submitting: _submitting,
-          onContinue: _onContinueOrdering,
-          onSubmit: _onSubmitOrder,
-        );
-      default:
-        return const SizedBox.shrink();
-    }
   }
 }
 
 class _FlowHeader extends StatelessWidget {
   const _FlowHeader({
     required this.title,
-    required this.stepLabel,
     required this.onBack,
     required this.onClose,
     this.personName,
+    this.modeLabel,
+    this.onChangePerson,
   });
 
   final String title;
-  final String stepLabel;
   final String? personName;
+  final String? modeLabel;
   final VoidCallback onBack;
   final VoidCallback onClose;
+  final VoidCallback? onChangePerson;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Row(
         children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: onBack,
-                icon: const Icon(Icons.arrow_back),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
-                    if (personName != null)
-                      Text(
-                        personName!,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          IconButton(
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_back),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                if (personName != null)
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          personName!,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _orderCtaColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  stepLabel,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: _orderCtaColor,
-                    fontWeight: FontWeight.w600,
+                      if (modeLabel != null) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          modeLabel!,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: _orderCtaColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ],
                   ),
-                ),
-              ),
-              IconButton(
-                onPressed: onClose,
-                icon: const Icon(Icons.close),
-              ),
-            ],
+              ],
+            ),
+          ),
+          if (onChangePerson != null)
+            TextButton(
+              onPressed: onChangePerson,
+              child: const Text('伝票切り替え'),
+            ),
+          IconButton(
+            onPressed: onClose,
+            icon: const Icon(Icons.close),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CartBar extends StatelessWidget {
+  const _CartBar({
+    required this.draftOrders,
+    required this.expanded,
+    required this.submitting,
+    required this.currency,
+    required this.onToggleExpand,
+    required this.onQtyChanged,
+    required this.onSubmit,
+  });
+
+  final Map<String, DraftOrderLine> draftOrders;
+  final bool expanded;
+  final bool submitting;
+  final NumberFormat currency;
+  final VoidCallback onToggleExpand;
+  final void Function(String menuId, int qty) onQtyChanged;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = draftOrders.values.toList();
+    final count = lines.fold(0, (s, l) => s + l.qty);
+    final total = lines.fold(0, (s, l) => s + l.lineTotal);
+
+    return Material(
+      elevation: 8,
+      color: Theme.of(context).colorScheme.surface,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (expanded && lines.isNotEmpty)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  itemCount: lines.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final line = lines[index];
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(line.menu.name),
+                      subtitle: Text(currency.format(line.lineTotal)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: submitting
+                                ? null
+                                : () => onQtyChanged(
+                                    line.menu.id,
+                                    line.qty - 1,
+                                  ),
+                            icon: const Icon(Icons.remove_circle_outline),
+                          ),
+                          Text(
+                            '${line.qty}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          IconButton(
+                            onPressed: submitting
+                                ? null
+                                : () => onQtyChanged(
+                                    line.menu.id,
+                                    line.qty + 1,
+                                  ),
+                            icon: const Icon(Icons.add_circle_outline),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Row(
+                children: [
+                  InkWell(
+                    onTap: lines.isEmpty ? null : onToggleExpand,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            expanded
+                                ? Icons.expand_more
+                                : Icons.shopping_cart_outlined,
+                            color: _orderCtaColor,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            count == 0
+                                ? 'カート空'
+                                : '$count点・${currency.format(total)}',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: submitting || lines.isEmpty ? null : onSubmit,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _orderCtaColor,
+                      minimumSize: const Size(120, 48),
+                    ),
+                    child: Text(submitting ? '確定中...' : '注文を確定'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

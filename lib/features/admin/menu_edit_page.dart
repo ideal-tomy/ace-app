@@ -857,8 +857,8 @@ class _MenuEditPageState extends State<MenuEditPage> {
         return ListView(
           children: [
             Text(
-              'スイッチを切ると注文画面に出なくなります（休止）。\n'
-              '単価を変えるときは、削除してから同じ名前で登録し直してください。',
+              'スイッチ切替で注文非表示に変更（休止）。\n'
+              '価格変更は、一度削除してから再登録。',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             for (final family in drinkMenuFamilies)

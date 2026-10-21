@@ -195,8 +195,7 @@ class _OrderPageState extends State<OrderPage> {
                 },
               ),
             ),
-            if (_selectedPerson != null)
-              Expanded(child: _buildCheckContent()),
+            if (_selectedPerson != null) Expanded(child: _buildCheckContent()),
             Padding(
               padding: const EdgeInsets.all(12),
               child: SizedBox(
@@ -263,33 +262,27 @@ class _OrderPageState extends State<OrderPage> {
             }
             final registered = itemsSnap.data!;
 
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 8),
-                  CheckStatusCompactCard(
-                    summary: summary,
-                    items: registered,
-                    currency: _currency,
-                    draftCount: _draftCount,
-                    draftTotal: _draftTotal,
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: OrderItemsList(
-                      registered: registered,
-                      draftOrders: _draftOrders,
-                      currency: _currency,
-                      isPaid: summary.status == 'paid',
-                      lineBusy: _removingLine || _updatingLine,
-                      onEdit: _editCheckItemQty,
-                      onDelete: _confirmRemoveCheckItem,
-                    ),
-                  ),
-                ],
-              ),
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+              children: [
+                CheckStatusCompactCard(
+                  summary: summary,
+                  items: registered,
+                  currency: _currency,
+                  draftCount: _draftCount,
+                  draftTotal: _draftTotal,
+                ),
+                const SizedBox(height: 12),
+                OrderItemsList(
+                  registered: registered,
+                  draftOrders: _draftOrders,
+                  currency: _currency,
+                  isPaid: summary.status == 'paid',
+                  lineBusy: _removingLine || _updatingLine,
+                  onEdit: _editCheckItemQty,
+                  onDelete: _confirmRemoveCheckItem,
+                ),
+              ],
             );
           },
         );

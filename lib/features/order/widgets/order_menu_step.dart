@@ -10,12 +10,16 @@ import '../../../data/repositories/menu_repository.dart';
 import '../../../models/menu_item.dart';
 import '../../../models/person_option.dart';
 import '../../admin/menu_edit_page.dart';
-import '../event_menu_tier_catalog.dart';
 import '../order_custom_item_dialogs.dart';
 import '../order_flow_state.dart';
-import 'order_event_tier_section.dart';
+import 'order_drink_family_panel.dart';
 
 enum _MenuTab { drink, food, goods }
+
+const _menuTabLabelStyle = TextStyle(
+  fontSize: 14,
+  fontWeight: FontWeight.w700,
+);
 
 class OrderMenuStep extends StatefulWidget {
   const OrderMenuStep({
@@ -45,7 +49,6 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
     symbol: '¥',
     decimalDigits: 0,
   );
-  String? _activeCategory;
   bool _seeding = false;
   _MenuTab _tab = _MenuTab.drink;
 
@@ -93,9 +96,18 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
           child: SegmentedButton<_MenuTab>(
             showSelectedIcon: false,
             segments: const [
-              ButtonSegment(value: _MenuTab.drink, label: Text('ドリンク')),
-              ButtonSegment(value: _MenuTab.food, label: Text('フード')),
-              ButtonSegment(value: _MenuTab.goods, label: Text('グッズ')),
+              ButtonSegment(
+                value: _MenuTab.drink,
+                label: Text('ドリンク', style: _menuTabLabelStyle),
+              ),
+              ButtonSegment(
+                value: _MenuTab.food,
+                label: Text('フード', style: _menuTabLabelStyle),
+              ),
+              ButtonSegment(
+                value: _MenuTab.goods,
+                label: Text('グッズ', style: _menuTabLabelStyle),
+              ),
             ],
             selected: {_tab},
             onSelectionChanged: (s) => setState(() => _tab = s.first),
@@ -263,7 +275,9 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
             widget.person.openCheckId,
           ),
           builder: (context, checkSummarySnapshot) {
-            final checkMode = checkSummarySnapshot.data?.billingMode;
+            final checkMode =
+                checkSummarySnapshot.data?.billingMode ??
+                widget.person.billingMode;
             final isNormalCheck = checkMode == BusinessMode.normal;
             final sourceMenus = isNormalCheck
                 ? menus.where(isSeparateAccountingMenu).toList()
@@ -283,256 +297,26 @@ class _OrderMenuStepState extends State<OrderMenuStep> {
               );
             }
 
-            final isEventCheck = !isNormalCheck;
-            final gridSourceMenus = isEventCheck
-                ? sourceMenus
-                      .where((m) => isEventIndividualCategory(m.category))
-                      .toList()
-                : sourceMenus;
-
-            if (isEventCheck) {
-              return _EventMenuLayout(
-                currency: _currency,
-                individualMenus: gridSourceMenus,
-                activeCategory: _activeCategory,
-                onCategoryChanged: (cat) =>
-                    setState(() => _activeCategory = cat),
-                onMenuSelected: widget.onMenuSelected,
-              );
-            }
-
-            if (gridSourceMenus.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    '通常営業では例外ドリンクのみ注文可能です（対象メニューが未登録です）',
-                    textAlign: TextAlign.center,
+            return OrderDrinkFamilyPanel(
+              sourceMenus: sourceMenus,
+              isNormalCheck: isNormalCheck,
+              eventOrdering: !isNormalCheck,
+              checkRepository: widget.checkRepository,
+              openCheckId: widget.person.openCheckId,
+              currency: _currency,
+              onMenuSelected: widget.onMenuSelected,
+              onReorderMissing: () {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('メニューが見つかりません。一覧から選んでください'),
                   ),
-                ),
-              );
-            }
-
-            final categories =
-                gridSourceMenus
-                    .map((m) => normalModeCategoryKey(m))
-                    .toSet()
-                    .toList()
-                  ..sort((a, b) {
-                    if (a == kTequilaOthersCategory) {
-                      return b == kTequilaOthersCategory ? 0 : -1;
-                    }
-                    if (b == kTequilaOthersCategory) return 1;
-                    return MenuCategoryCatalog.compareKeys(a, b);
-                  });
-            if (!categories.contains(_activeCategory)) {
-              _activeCategory = categories.first;
-            }
-            final shown = gridSourceMenus
-                .where((m) => normalModeCategoryKey(m) == _activeCategory)
-                .toList();
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                  child: Text(
-                    '通常営業中: 例外ドリンクのみ注文できます',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                SizedBox(
-                  height: 44,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: categories.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final cat = categories[index];
-                      final selected = cat == _activeCategory;
-                      return ChoiceChip(
-                        label: Text(
-                          normalModeCategoryLabel(cat),
-                          style: _chipLabelStyle,
-                        ),
-                        selected: selected,
-                        onSelected: (_) =>
-                            setState(() => _activeCategory = cat),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: shown.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 8,
-                          childAspectRatio: _menuGridAspectRatio,
-                        ),
-                    itemBuilder: (context, index) => _MenuGridButton(
-                      item: shown[index],
-                      currency: _currency,
-                      onPressed: widget.onMenuSelected,
-                    ),
-                  ),
-                ),
-              ],
+                );
+              },
             );
           },
         );
       },
-    );
-  }
-}
-
-class _EventMenuLayout extends StatefulWidget {
-  const _EventMenuLayout({
-    required this.currency,
-    required this.individualMenus,
-    required this.activeCategory,
-    required this.onCategoryChanged,
-    required this.onMenuSelected,
-  });
-
-  final NumberFormat currency;
-  final List<MenuItem> individualMenus;
-  final String? activeCategory;
-  final ValueChanged<String> onCategoryChanged;
-  final ValueChanged<MenuItem> onMenuSelected;
-
-  @override
-  State<_EventMenuLayout> createState() => _EventMenuLayoutState();
-}
-
-class _EventMenuLayoutState extends State<_EventMenuLayout> {
-  String? _activeCategory;
-
-  @override
-  void initState() {
-    super.initState();
-    _activeCategory = widget.activeCategory;
-  }
-
-  @override
-  void didUpdateWidget(covariant _EventMenuLayout oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final categories = _individualCategories;
-    if (categories.isNotEmpty && !categories.contains(_activeCategory)) {
-      _activeCategory = categories.first;
-      widget.onCategoryChanged(_activeCategory!);
-    }
-  }
-
-  List<String> get _individualCategories {
-    return widget.individualMenus
-        .map(eventIndividualDisplayCategoryKey)
-        .toSet()
-        .toList()
-      ..sort((a, b) {
-        if (a == kEventShotCategory) return b == kEventShotCategory ? 0 : -1;
-        if (b == kEventShotCategory) return 1;
-        return a.compareTo(b);
-      });
-  }
-
-  List<MenuItem> get _shownIndividualMenus {
-    final cat = _activeCategory;
-    if (cat == null) return const [];
-    return widget.individualMenus
-        .where((m) => eventIndividualDisplayCategoryKey(m) == cat)
-        .toList()
-      ..sort((a, b) {
-        final catCompare = MenuCategoryCatalog.compareKeys(
-          a.category,
-          b.category,
-        );
-        if (catCompare != 0) return catCompare;
-        return a.sortOrder.compareTo(b.sortOrder);
-      });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final categories = _individualCategories;
-    if (categories.isNotEmpty &&
-        (_activeCategory == null || !categories.contains(_activeCategory))) {
-      _activeCategory = categories.first;
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 16),
-            children: [
-              if (categories.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    '個別メニュー',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 44,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: categories.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final cat = categories[index];
-                      final selected = cat == _activeCategory;
-                      return ChoiceChip(
-                        label: Text(
-                          eventIndividualDisplayCategoryLabel(cat),
-                          style: _chipLabelStyle,
-                        ),
-                        selected: selected,
-                        onSelected: (_) {
-                          setState(() => _activeCategory = cat);
-                          widget.onCategoryChanged(cat);
-                        },
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 8),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _shownIndividualMenus.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: _menuGridAspectRatio,
-                  ),
-                  itemBuilder: (context, index) => _MenuGridButton(
-                    item: _shownIndividualMenus[index],
-                    currency: widget.currency,
-                    onPressed: widget.onMenuSelected,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              OrderEventTierSection(onTierSelected: widget.onMenuSelected),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

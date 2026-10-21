@@ -11,10 +11,12 @@ class CheckItem {
     required this.qty,
     required this.lineTotalTaxIncluded,
     required this.orderedAt,
+    this.menuId,
     this.billedAs,
   });
 
   final String id;
+  final String? menuId;
   final String menuNameSnapshot;
   final String menuCategorySnapshot;
   final int unitPriceTaxIncluded;
@@ -39,6 +41,7 @@ class CheckItem {
     final ts = map['orderedAt'];
     return CheckItem(
       id: id,
+      menuId: map['menuId'] as String?,
       menuNameSnapshot: map['menuNameSnapshot'] as String? ?? '',
       menuCategorySnapshot: map['menuCategorySnapshot'] as String? ?? '',
       unitPriceTaxIncluded: (map['unitPriceTaxIncluded'] as num?)?.toInt() ?? 0,

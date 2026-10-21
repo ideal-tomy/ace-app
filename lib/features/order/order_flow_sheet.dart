@@ -5,7 +5,9 @@ import '../../core/admin_auth_service.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../data/repositories/menu_repository.dart';
 import '../../models/menu_item.dart';
+import '../../core/business_mode.dart';
 import '../../models/person_option.dart';
+import '../shared/business_mode_badge.dart';
 import 'order_flow_state.dart';
 import 'widgets/order_menu_step.dart';
 import 'widgets/order_person_step.dart';
@@ -177,6 +179,9 @@ class _OrderFlowSheetState extends State<OrderFlowSheet> {
               personName: !_pickingPerson && person != null
                   ? '${person.displayName}  ${person.peopleCount}名'
                   : null,
+              billingMode: !_pickingPerson ? person?.billingMode : null,
+              switchedFromEvent:
+                  !_pickingPerson ? (person?.switchedFromEvent ?? false) : false,
               modeLabel: !_pickingPerson ? person?.modeBadgeLabel : null,
               onBack: () {
                 if (!_pickingPerson && widget.initialState.person == null) {
@@ -233,12 +238,16 @@ class _FlowHeader extends StatelessWidget {
     required this.onClose,
     this.personName,
     this.modeLabel,
+    this.billingMode,
+    this.switchedFromEvent = false,
     this.onChangePerson,
   });
 
   final String title;
   final String? personName;
   final String? modeLabel;
+  final BusinessMode? billingMode;
+  final bool switchedFromEvent;
   final VoidCallback onBack;
   final VoidCallback onClose;
   final VoidCallback? onChangePerson;
@@ -284,13 +293,14 @@ class _FlowHeader extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (modeLabel != null) ...[
+                  if (modeLabel != null && billingMode != null) ...[
                     const SizedBox(width: 8),
-                    Text(
-                      modeLabel!,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: _orderCtaColor,
-                        fontWeight: FontWeight.w600,
+                    BusinessModeBadge(
+                      label: modeLabel!,
+                      billingMode: billingMode!,
+                      switchedFromEvent: switchedFromEvent,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],

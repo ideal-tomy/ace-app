@@ -11,6 +11,16 @@ import '../../models/person_option.dart';
 import '../shared/check_item_actions.dart';
 import 'checkout_staff_billing_card.dart';
 
+const _checkoutNameStyle = TextStyle(
+  fontSize: 22,
+  fontWeight: FontWeight.w700,
+);
+
+const _paymentMethodLabelStyle = TextStyle(
+  fontSize: 14,
+  fontWeight: FontWeight.w700,
+);
+
 Future<bool> showCheckoutDetailSheet(
   BuildContext context, {
   required PersonOption person,
@@ -232,11 +242,22 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                         '会計内容',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      Text(
-                        widget.person.displayName,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.person.displayName,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: _checkoutNameStyle,
+                            ),
+                          ),
+                          Text(
+                            '${widget.person.peopleCount}名',
+                            style: _checkoutNameStyle,
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -337,7 +358,10 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                                   for (final method in PaymentMethod.values)
                                     ButtonSegment(
                                       value: method,
-                                      label: Text(method.label),
+                                      label: Text(
+                                        method.label,
+                                        style: _paymentMethodLabelStyle,
+                                      ),
                                     ),
                                 ],
                                 emptySelectionAllowed: true,

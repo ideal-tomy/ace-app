@@ -15,6 +15,7 @@ import '../checkout/checkout_detail_sheet.dart';
 import '../checkout/checkout_page.dart';
 import '../order/open_order_flow.dart';
 import '../order/order_page.dart';
+import '../shared/business_mode_badge.dart';
 import '../shared/check_billing_utils.dart';
 import '../shared/search_clear_field.dart';
 import '../visit/visit_register_page.dart';
@@ -63,6 +64,7 @@ class _HomePageState extends State<HomePage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${result.customerName} さんの伝票を作成しました')),
     );
+    if (result.billingMode != BusinessMode.event) return;
     final person = PersonOption(
       customerId: '',
       displayName: result.customerName,
@@ -342,7 +344,7 @@ class _HomePageState extends State<HomePage> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: SearchClearField(
-                labelText: '未会計を名前で検索',
+                labelText: '名前で検索',
                 onChanged: (v) => setState(() => _keyword = v),
               ),
             ),
@@ -470,11 +472,6 @@ class _OpenCheckCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isNormal = summary.billingMode == BusinessMode.normal;
-    final badgeColor = isNormal
-        ? const Color(0xFF0F766E)
-        : const Color(0xFFEA580C);
-
     return Padding(
       padding: const EdgeInsets.only(top: 10),
       child: Stack(
@@ -595,23 +592,10 @@ class _OpenCheckCard extends StatelessWidget {
           Positioned(
             top: -8,
             left: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Color.alphaBlend(
-                  badgeColor.withValues(alpha: 0.14),
-                  Theme.of(context).colorScheme.surface,
-                ),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: badgeColor.withValues(alpha: 0.35)),
-              ),
-              child: Text(
-                summary.modeBadgeLabel,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: badgeColor,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+            child: BusinessModeBadge(
+              label: summary.modeBadgeLabel,
+              billingMode: summary.billingMode,
+              switchedFromEvent: summary.switchedFromEvent,
             ),
           ),
         ],

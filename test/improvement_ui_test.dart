@@ -107,14 +107,21 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('テスト  2名'), findsOneWidget);
-        final tequilaChip = tester.widget<ChoiceChip>(
-          find.widgetWithText(ChoiceChip, 'テキーラ他'),
-        );
-        expect(tequilaChip.selected, isTrue);
-        expect(
-          tester.getTopLeft(find.text('テキーラ他')).dx,
-          lessThan(tester.getTopLeft(find.text('シャンパン')).dx),
-        );
+        if (mode == BusinessMode.event) {
+          expect(
+            tester.getTopLeft(find.text('テキーラ')).dx,
+            greaterThan(tester.getTopLeft(find.text('シャンパン')).dx),
+          );
+        } else {
+          final tequilaChip = tester.widget<ChoiceChip>(
+            find.widgetWithText(ChoiceChip, 'テキーラ'),
+          );
+          expect(tequilaChip.selected, isTrue);
+          expect(
+            tester.getTopLeft(find.text('テキーラ')).dx,
+            lessThan(tester.getTopLeft(find.text('シャンパン')).dx),
+          );
+        }
         await tester.tap(find.text('フード'));
         await tester.pumpAndSettle();
         expect(

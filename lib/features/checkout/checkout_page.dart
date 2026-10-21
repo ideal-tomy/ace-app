@@ -85,6 +85,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     people: snapshot.data!,
                     emptyTitle: '会計対象のお客様がいません',
                     emptySubtitle: '来店登録済みで未会計の方がここに表示されます',
+                    layout: PersonPickerLayout.staff,
+                    checkRepository: _checkRepository,
                     onPersonSelected: _openCheckoutSheet,
                   );
                 },

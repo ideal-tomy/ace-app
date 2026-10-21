@@ -53,12 +53,12 @@ class OrderItemsList extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 4),
-        Expanded(
-          child: hasAny
-              ? Card(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    children: [
+        if (hasAny)
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                       for (final line in draftOrders.values) ...[
                         ListTile(
                           leading: const Icon(Icons.schedule, size: 22),
@@ -79,18 +79,20 @@ class OrderItemsList extends StatelessWidget {
                         ),
                         const Divider(height: 1, indent: 16, endIndent: 16),
                       ],
-                    ],
-                  ),
-                )
-              : Center(
-                  child: Text(
-                    'まだ注文がありません',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-        ),
+              ],
+            ),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Text(
+              'まだ注文がありません',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
       ],
     );
   }

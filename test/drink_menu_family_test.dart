@@ -35,6 +35,19 @@ void main() {
     expect(familyForCategory('FOOD'), isNull);
   });
 
+  test('イベント注文はテキーラ系ファミリーを末尾に並べる', () {
+    final menus = [
+      _menu('テキーラA', 'TEQUILA'),
+      _menu('シャンパン', 'CHAMPAGNE'),
+      _menu('レモン', 'SOUR'),
+    ];
+    final keys = drinkFamiliesForMenus(menus, eventOrdering: true)
+        .map((f) => f.key)
+        .toList();
+    expect(keys.indexOf('sour'), lessThan(keys.indexOf('tequila')));
+    expect(keys.indexOf('champagne'), lessThan(keys.indexOf('tequila')));
+  });
+
   test('resolvedMegaName は「メガ」を一度だけ付ける', () {
     expect(resolvedMegaName(' 緑茶ハイ '), 'メガ緑茶ハイ');
     expect(resolvedMegaName('メガ緑茶ハイ'), 'メガ緑茶ハイ');

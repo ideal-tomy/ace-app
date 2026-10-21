@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/business_mode.dart';
+import '../shared/business_mode_badge.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../data/repositories/customer_repository.dart';
 
@@ -244,11 +245,25 @@ class _ModeOptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final frame = BusinessModeBadgeColors.frameColor(
+      billingMode: mode,
+      switchedFromEvent: false,
+    );
+    final text = BusinessModeBadgeColors.textColor(
+      billingMode: mode,
+      switchedFromEvent: false,
+    );
     return Material(
       color: selected
-          ? Theme.of(context).colorScheme.primaryContainer
+          ? frame.withValues(alpha: 0.12)
           : Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: selected ? frame.withValues(alpha: 0.55) : Colors.transparent,
+          width: 2,
+        ),
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -258,9 +273,7 @@ class _ModeOptionTile extends StatelessWidget {
             children: [
               Icon(
                 selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                color: selected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
+                color: text,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -269,7 +282,10 @@ class _ModeOptionTile extends StatelessWidget {
                   children: [
                     Text(
                       mode.label,
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: text,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     Text(
                       mode.description,

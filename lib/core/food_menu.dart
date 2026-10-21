@@ -10,6 +10,8 @@ const kFoodDailyCategory = 'FOOD_DAILY';
 const kFoodQuickPrices = [300, 400, 500, 900];
 
 int compareFoodMenus(MenuItem a, MenuItem b) {
+  final order = a.sortOrder.compareTo(b.sortOrder);
+  if (order != 0) return order;
   final price = a.priceTaxIncluded.compareTo(b.priceTaxIncluded);
   if (price != 0) return price;
   final name = compareJapaneseNames(a.name, b.name);

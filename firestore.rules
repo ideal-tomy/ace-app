@@ -208,9 +208,18 @@ service cloud.firestore {
       match /menus/{menuId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn() && isValidMenuCreate(request.resource.data);
-        allow update: if isSignedIn() &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive']) &&
-          request.resource.data.isActive is bool;
+        allow update: if isSignedIn() && (
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive']) &&
+            request.resource.data.isActive is bool
+          ) ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sortOrder']) &&
+            request.resource.data.sortOrder is int &&
+            request.resource.data.sortOrder >= 0 &&
+            request.resource.data.sortOrder <= 1000000
+          )
+        );
         allow delete: if isSignedIn();
       }
 

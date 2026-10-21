@@ -1,13 +1,16 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/drink_family_theme.dart';
 import '../../../core/drink_menu_family.dart';
+import '../../../core/menu_admin_family_order.dart';
 import '../../../data/repositories/check_repository.dart';
+import '../../../data/repositories/store_settings_repository.dart';
 import '../../../models/check_item.dart';
 import '../../../models/menu_item.dart';
+import '../kocha_hai_order.dart';
 
-const _chipLabelStyle = TextStyle(fontSize: 15, fontWeight: FontWeight.w700);
 const _menuGridAspectRatio = 2.0;
 const _sizeLabelStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.w700);
 
@@ -39,32 +42,50 @@ class OrderDrinkFamilyPanel extends StatefulWidget {
 }
 
 class _OrderDrinkFamilyPanelState extends State<OrderDrinkFamilyPanel> {
-  String? _activeFamilyKey;
+  String? _activeTabKey;
   DrinkSize _size = DrinkSize.regular;
+  late final Stream<List<String>?> _familyOrderStream = Firebase.apps.isEmpty
+      ? Stream<List<String>?>.value(null)
+      : StoreSettingsRepository().streamDrinkFamilyOrderKeys();
 
-  List<DrinkMenuFamily> get _families => drinkFamiliesForMenus(
-    widget.sourceMenus,
-    eventOrdering: widget.eventOrdering,
-  );
+  List<DrinkOrderTab> _tabsFor(List<String>? familyOrderKeys) =>
+      drinkOrderTabsForMenus(
+        widget.sourceMenus,
+        eventOrdering: widget.eventOrdering,
+        familyOrderKeys: familyOrderKeys,
+      );
 
-  String _effectiveFamilyKey(List<DrinkMenuFamily> families) {
-    if (_activeFamilyKey != null &&
-        families.any((f) => f.key == _activeFamilyKey)) {
-      return _activeFamilyKey!;
+  String _effectiveTabKey(List<DrinkOrderTab> tabs) {
+    if (_activeTabKey != null && tabs.any((t) => t.key == _activeTabKey)) {
+      return _activeTabKey!;
     }
-    return families.first.key;
+    return tabs.first.key;
+  }
+
+  Future<void> _selectMenu(MenuItem menu) async {
+    final resolved = await pickKochaHaiSugarIfNeeded(context, menu);
+    if (resolved != null) widget.onMenuSelected(resolved);
   }
 
   @override
   Widget build(BuildContext context) {
-    final families = _families;
-    if (families.isEmpty) {
-      return const Center(child: Text('表示可能なドリンクがありません'));
-    }
-    final activeKey = _effectiveFamilyKey(families);
-    final family = families.firstWhere((f) => f.key == activeKey);
-    final size = family.hasMega ? _size : DrinkSize.regular;
-    final pairs = pairDrinkMenus(family, widget.sourceMenus);
+    return StreamBuilder<List<String>?>(
+      stream: _familyOrderStream,
+      builder: (context, orderSnapshot) {
+        final tabs = _tabsFor(orderSnapshot.data);
+        if (tabs.isEmpty) {
+          return const Center(child: Text('表示可能なドリンクがありません'));
+        }
+        return _buildPanel(context, tabs);
+      },
+    );
+  }
+
+  Widget _buildPanel(BuildContext context, List<DrinkOrderTab> tabs) {
+    final activeKey = _effectiveTabKey(tabs);
+    final tab = tabs.firstWhere((t) => t.key == activeKey);
+    final size = tab.hasMega ? _size : DrinkSize.regular;
+    final pairs = pairDrinkMenusForTab(tab, widget.sourceMenus);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -125,14 +146,16 @@ class _OrderDrinkFamilyPanelState extends State<OrderDrinkFamilyPanel> {
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             scrollDirection: Axis.horizontal,
-            itemCount: families.length,
+            itemCount: tabs.length,
             separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
-              final f = families[index];
-              final selected = f.key == activeKey;
-              final color = DrinkFamilyTheme.colorForFamilyKey(f.key);
+              final t = tabs[index];
+              final selected = t.key == activeKey;
+              final color = DrinkFamilyTheme.colorForFamilyKey(t.themeKey);
+              final fill = selected ? color.withValues(alpha: 0.95) : color;
               return ChoiceChip(
-                label: Text(f.label, style: _chipLabelStyle),
+                key: ValueKey(t.key),
+                label: DrinkFamilyStrokeLabel(text: t.label, fillColor: fill),
                 selected: selected,
                 selectedColor: color.withValues(alpha: 0.22),
                 backgroundColor: color.withValues(alpha: 0.08),
@@ -142,18 +165,16 @@ class _OrderDrinkFamilyPanelState extends State<OrderDrinkFamilyPanel> {
                       : color.withValues(alpha: 0.35),
                   width: selected ? 2 : 1,
                 ),
-                labelStyle: _chipLabelStyle.copyWith(
-                  color: selected ? color.withValues(alpha: 0.95) : color,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 onSelected: (_) => setState(() {
-                  _activeFamilyKey = f.key;
-                  if (!f.hasMega) _size = DrinkSize.regular;
+                  _activeTabKey = t.key;
+                  if (!t.hasMega) _size = DrinkSize.regular;
                 }),
               );
             },
           ),
         ),
-        if (family.hasMega) ...[
+        if (tab.hasMega) ...[
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -196,12 +217,13 @@ class _OrderDrinkFamilyPanelState extends State<OrderDrinkFamilyPanel> {
                     final menu = item ?? fallback;
                     if (menu == null) return const SizedBox.shrink();
                     final disabled = item == null;
+                    final label = kochaHaiGridLabel(menu, pair.displayName);
                     return _PairGridButton(
-                      displayName: pair.displayName,
+                      displayName: label,
                       menu: menu,
                       disabled: disabled,
                       currency: widget.currency,
-                      onPressed: widget.onMenuSelected,
+                      onPressed: _selectMenu,
                     );
                   },
                 ),
@@ -211,12 +233,16 @@ class _OrderDrinkFamilyPanelState extends State<OrderDrinkFamilyPanel> {
   }
 
   void _reorder(CheckItemSnapshot snap) {
-    final menu = resolveMenuFromCatalog(
+    final menu = resolveMenuForReorder(
       snapshot: snap,
       catalog: widget.sourceMenus,
     );
     if (menu == null) {
       widget.onReorderMissing?.call();
+      return;
+    }
+    if (needsKochaHaiSugarPick(menu)) {
+      _selectMenu(menu);
       return;
     }
     widget.onMenuSelected(menu);
@@ -236,7 +262,7 @@ class _PairGridButton extends StatelessWidget {
   final MenuItem menu;
   final bool disabled;
   final NumberFormat currency;
-  final ValueChanged<MenuItem> onPressed;
+  final Future<void> Function(MenuItem menu) onPressed;
 
   @override
   Widget build(BuildContext context) {

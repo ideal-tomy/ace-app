@@ -1,11 +1,19 @@
 import '../models/check_item.dart';
 import '../models/menu_item.dart';
 import 'food_menu.dart';
+import 'menu_admin_family_order.dart';
 import 'menu_category_catalog.dart';
 
 enum DrinkSize { regular, mega }
 
 const kMegaNamePrefix = 'メガ';
+
+const kTequilaOthersTabKey = 'tequila_others';
+const kTequilaOthersTabLabel = 'テキーラ他';
+
+/// テキーラ他グループ内の登録先 category。
+const kTequilaShotStorageCategory = 'TEQUILA';
+const kOthersShotStorageCategory = 'OTHERS';
 
 /// 管理画面でまとめて扱うドリンクの種類。通常とメガは Firestore 上は別 category。
 class DrinkMenuFamily {
@@ -15,6 +23,8 @@ class DrinkMenuFamily {
     required this.regularQuickPrices,
     this.megaCategory,
     this.megaQuickPrices = const [],
+    this.additionalCategories = const [],
+    this.displayLabel,
   });
 
   final String key;
@@ -23,9 +33,22 @@ class DrinkMenuFamily {
   final List<int> regularQuickPrices;
   final List<int> megaQuickPrices;
 
-  String get label => MenuCategoryCatalog.labelFor(regularCategory);
+  /// Firestore 上は別 category のまま、一覧・注文ではまとめて表示する。
+  final List<String> additionalCategories;
+  final String? displayLabel;
+
+  String get label =>
+      displayLabel ?? MenuCategoryCatalog.labelFor(regularCategory);
 
   bool get hasMega => megaCategory != null;
+
+  bool get isTequilaOthersGroup => key == kTequilaOthersTabKey;
+
+  List<String> get allCategories => [
+    regularCategory,
+    ?megaCategory,
+    ...additionalCategories,
+  ];
 
   String categoryFor(DrinkSize size) =>
       size == DrinkSize.mega ? megaCategory! : regularCategory;
@@ -34,7 +57,9 @@ class DrinkMenuFamily {
       size == DrinkSize.mega ? megaQuickPrices : regularQuickPrices;
 
   bool contains(String category) =>
-      category == regularCategory || category == megaCategory;
+      category == regularCategory ||
+      category == megaCategory ||
+      additionalCategories.contains(category);
 }
 
 const drinkMenuFamilies = [
@@ -85,14 +110,11 @@ const drinkMenuFamilies = [
     regularQuickPrices: [5500, 6600, 10000],
   ),
   DrinkMenuFamily(
-    key: 'tequila',
+    key: kTequilaOthersTabKey,
     regularCategory: 'TEQUILA',
-    regularQuickPrices: [500],
-  ),
-  DrinkMenuFamily(
-    key: 'others',
-    regularCategory: 'OTHERS',
-    regularQuickPrices: [500, 700, 1000],
+    additionalCategories: ['OTHERS'],
+    displayLabel: kTequilaOthersTabLabel,
+    regularQuickPrices: [500, 700, 1000, 3000],
   ),
   DrinkMenuFamily(
     key: 'bottle',
@@ -110,20 +132,37 @@ const drinkMenuFamilies = [
 List<DrinkMenuFamily> drinkFamiliesForMenus(
   Iterable<MenuItem> menus, {
   required bool eventOrdering,
+  List<String>? familyOrderKeys,
 }) {
   final visible = drinkMenuFamilies
       .where((f) => menus.any((m) => f.contains(m.category)))
       .toList();
+
+  if (familyOrderKeys != null && familyOrderKeys.isNotEmpty) {
+    final ordered = sortDrinkFamiliesByOrderKeys(visible, familyOrderKeys);
+    visible
+      ..clear()
+      ..addAll(ordered);
+    if (eventOrdering) {
+      final late = visible.where((f) => _isLateFamily(f.key)).toList();
+      if (late.isNotEmpty) {
+        visible.removeWhere((f) => _isLateFamily(f.key));
+        visible.addAll(late);
+      }
+    }
+    return visible;
+  }
+
   visible.sort((a, b) {
     if (eventOrdering) {
       final aLate = _isLateFamily(a.key);
       final bLate = _isLateFamily(b.key);
       if (aLate != bLate) return aLate ? 1 : -1;
     } else {
-      if (a.key == 'tequila') return b.key == 'tequila' ? 0 : -1;
-      if (b.key == 'tequila') return 1;
-      if (a.key == 'others') return b.key == 'others' ? 0 : -1;
-      if (b.key == 'others') return 1;
+      if (a.key == kTequilaOthersTabKey) {
+        return b.key == kTequilaOthersTabKey ? 0 : -1;
+      }
+      if (b.key == kTequilaOthersTabKey) return 1;
     }
     final ra = MenuCategoryCatalog.compareKeys(
       a.regularCategory,
@@ -134,7 +173,57 @@ List<DrinkMenuFamily> drinkFamiliesForMenus(
   return visible;
 }
 
-bool _isLateFamily(String key) => key == 'tequila' || key == 'others';
+bool _isLateFamily(String key) => key == kTequilaOthersTabKey;
+
+/// 注文画面の1チップ（テキーラ＋アザーは統合タブ）。
+class DrinkOrderTab {
+  const DrinkOrderTab({
+    required this.key,
+    required this.label,
+    required this.families,
+  });
+
+  final String key;
+  final String label;
+  final List<DrinkMenuFamily> families;
+
+  bool get hasMega => families.any((f) => f.hasMega);
+
+  String get themeKey =>
+      key == kTequilaOthersTabKey ? kTequilaOthersTabKey : key;
+}
+
+List<DrinkOrderTab> drinkOrderTabsForMenus(
+  Iterable<MenuItem> menus, {
+  required bool eventOrdering,
+  List<String>? familyOrderKeys,
+}) {
+  return drinkFamiliesForMenus(
+    menus,
+    eventOrdering: eventOrdering,
+    familyOrderKeys: familyOrderKeys,
+  )
+      .map(
+        (f) => DrinkOrderTab(key: f.key, label: f.label, families: [f]),
+      )
+      .toList();
+}
+
+List<DrinkMenuPair> pairDrinkMenusForTab(
+  DrinkOrderTab tab,
+  Iterable<MenuItem> menus,
+) {
+  final pairs = <DrinkMenuPair>[];
+  for (final family in tab.families) {
+    pairs.addAll(pairDrinkMenus(family, menus));
+  }
+  pairs.sort((a, b) {
+    final aOrder = a.regular?.sortOrder ?? a.mega?.sortOrder ?? 9999;
+    final bOrder = b.regular?.sortOrder ?? b.mega?.sortOrder ?? 9999;
+    return aOrder.compareTo(bOrder);
+  });
+  return pairs;
+}
 
 /// 注文の再送用に、スナップショットからカタログの [MenuItem] を探す。
 MenuItem? resolveMenuFromCatalog({

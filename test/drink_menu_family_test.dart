@@ -35,7 +35,23 @@ void main() {
     expect(familyForCategory('FOOD'), isNull);
   });
 
-  test('イベント注文はテキーラ系ファミリーを末尾に並べる', () {
+  test('テキーラ他ファミリーは TEQUILA と OTHERS を包含する', () {
+    final group = drinkMenuFamilies.firstWhere(
+      (f) => f.key == kTequilaOthersTabKey,
+    );
+    expect(group.label, kTequilaOthersTabLabel);
+    expect(group.contains('TEQUILA'), isTrue);
+    expect(group.contains('OTHERS'), isTrue);
+    final menus = [
+      _menu('テキーラA', 'TEQUILA'),
+      _menu('コカボム', 'OTHERS'),
+      _menu('レモン', 'SOUR'),
+    ];
+    final pairs = pairDrinkMenus(group, menus);
+    expect(pairs.length, 2);
+  });
+
+  test('イベント注文はテキーラ他ファミリーを末尾に並べる', () {
     final menus = [
       _menu('テキーラA', 'TEQUILA'),
       _menu('シャンパン', 'CHAMPAGNE'),
@@ -44,8 +60,11 @@ void main() {
     final keys = drinkFamiliesForMenus(menus, eventOrdering: true)
         .map((f) => f.key)
         .toList();
-    expect(keys.indexOf('sour'), lessThan(keys.indexOf('tequila')));
-    expect(keys.indexOf('champagne'), lessThan(keys.indexOf('tequila')));
+    expect(keys.indexOf('sour'), lessThan(keys.indexOf(kTequilaOthersTabKey)));
+    expect(
+      keys.indexOf('champagne'),
+      lessThan(keys.indexOf(kTequilaOthersTabKey)),
+    );
   });
 
   test('resolvedMegaName は「メガ」を一度だけ付ける', () {

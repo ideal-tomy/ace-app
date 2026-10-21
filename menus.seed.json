@@ -87,6 +87,7 @@
   {"name":"クエルボマルガリータ","category":"TEQUILA","priceTaxIncluded":500,"isActive":true,"sortOrder":20},
   {"name":"イエガー","category":"OTHERS","priceTaxIncluded":500,"isActive":true,"sortOrder":30},
   {"name":"クライナー各種","category":"OTHERS","priceTaxIncluded":700,"isActive":true,"sortOrder":40},
+  {"name":"バリュー","category":"OTHERS","priceTaxIncluded":3000,"isActive":true,"sortOrder":5},
   {"name":"コカボム","category":"OTHERS","priceTaxIncluded":1000,"isActive":true,"sortOrder":50},
   {"name":"スミノフアイス","category":"OTHERS","priceTaxIncluded":770,"isActive":true,"sortOrder":60},
 

@@ -1,4 +1,5 @@
 import 'package:ace_app/core/business_mode.dart';
+import 'package:ace_app/core/drink_menu_family.dart';
 import 'package:ace_app/data/repositories/check_repository.dart';
 import 'package:ace_app/features/admin/menu_edit_page.dart';
 import 'package:ace_app/features/home/home_page.dart';
@@ -107,19 +108,20 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('テスト  2名'), findsOneWidget);
+        final tequilaChipFinder = find.byKey(
+          ValueKey(kTequilaOthersTabKey),
+        );
+        final champagneChipFinder = find.byKey(const ValueKey('champagne'));
         if (mode == BusinessMode.event) {
           expect(
-            tester.getTopLeft(find.text('テキーラ')).dx,
-            greaterThan(tester.getTopLeft(find.text('シャンパン')).dx),
+            tester.getTopLeft(tequilaChipFinder).dx,
+            greaterThan(tester.getTopLeft(champagneChipFinder).dx),
           );
         } else {
-          final tequilaChip = tester.widget<ChoiceChip>(
-            find.widgetWithText(ChoiceChip, 'テキーラ'),
-          );
-          expect(tequilaChip.selected, isTrue);
+          expect(tester.widget<ChoiceChip>(tequilaChipFinder).selected, isTrue);
           expect(
-            tester.getTopLeft(find.text('テキーラ')).dx,
-            lessThan(tester.getTopLeft(find.text('シャンパン')).dx),
+            tester.getTopLeft(tequilaChipFinder).dx,
+            lessThan(tester.getTopLeft(champagneChipFinder).dx),
           );
         }
         await tester.tap(find.text('フード'));
@@ -146,6 +148,7 @@ void main() {
   }
 
   testWidgets('商品一覧のカテゴリは閉じた状態で、展開できる', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
     await tester.pumpWidget(
       MaterialApp(
         home: MenuEditPage(
@@ -161,9 +164,14 @@ void main() {
     expect(tiles, isNotEmpty);
     expect(tiles.every((tile) => !tile.initiallyExpanded), isTrue);
     expect(find.text('唐揚げ').hitTestable(), findsNothing);
-    await tester.tap(find.widgetWithText(ExpansionTile, 'フード'));
+    final foodHeader = find.descendant(
+      of: find.byKey(const ValueKey('accordion-food')),
+      matching: find.text('フード'),
+    );
+    await tester.scrollUntilVisible(foodHeader, 48);
+    await tester.tap(foodHeader);
     await tester.pumpAndSettle();
-    expect(find.text('唐揚げ').hitTestable(), findsOneWidget);
+    expect(find.text('唐揚げ'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

@@ -1,12 +1,19 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/drink_family_theme.dart';
 import '../../core/drink_menu_family.dart';
 import '../../core/food_menu.dart';
+import '../../core/list_reorder.dart';
+import '../../core/menu_admin_family_order.dart';
 import '../../core/menu_category_catalog.dart';
 import '../../data/repositories/menu_repository.dart';
+import '../../data/repositories/store_settings_repository.dart';
 import '../../models/menu_item.dart';
 import '../home/home_page.dart';
 
@@ -20,7 +27,7 @@ String _kindLabel(MenuRegisterKind kind) => switch (kind) {
 
 enum _EditMode { register, list, remove }
 
-enum _RegisterStep { kind, family, size, name, price }
+enum _RegisterStep { kind, family, shotStorage, size, name, price }
 
 enum _RemoveStep { kind, family, size, item }
 
@@ -40,6 +47,7 @@ class MenuEditPage extends StatefulWidget {
     super.key,
     this.initialRegisterKind,
     this.menuRepository,
+    this.storeSettingsRepository,
     this.auth,
   });
 
@@ -47,6 +55,7 @@ class MenuEditPage extends StatefulWidget {
 
   final MenuRegisterKind? initialRegisterKind;
   final MenuRepository? menuRepository;
+  final StoreSettingsRepository? storeSettingsRepository;
   final FirebaseAuth? auth;
 
   @override
@@ -54,7 +63,15 @@ class MenuEditPage extends StatefulWidget {
 }
 
 class _MenuEditPageState extends State<MenuEditPage> {
+  static const _accordionTitleStyle = TextStyle(
+    fontSize: 19,
+    fontWeight: FontWeight.w700,
+    height: 1.15,
+  );
+
   late final _repo = widget.menuRepository ?? MenuRepository();
+  late final StoreSettingsRepository _settingsRepo =
+      widget.storeSettingsRepository ?? StoreSettingsRepository();
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
   final _megaPriceController = TextEditingController();
@@ -68,6 +85,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
   _RegisterStep _step = _RegisterStep.kind;
   MenuRegisterKind? _kind;
   DrinkMenuFamily? _family;
+  String? _registerStorageCategory;
   DrinkSize _size = DrinkSize.regular;
   _DrinkRegisterScope _drinkScope = _DrinkRegisterScope.regular;
 
@@ -77,20 +95,108 @@ class _MenuEditPageState extends State<MenuEditPage> {
   DrinkSize _removeSize = DrinkSize.regular;
 
   bool _saving = false;
+  bool _listReorderMode = false;
+  bool _itemReorderMode = false;
+  bool _savingFamilyOrder = false;
+  bool _savingItemOrder = false;
+  List<String> _familyOrderKeys = defaultDrinkFamilyOrderKeys();
+  StreamSubscription<List<String>?>? _familyOrderSub;
 
   @override
   void initState() {
     super.initState();
     final initial = widget.initialRegisterKind;
     if (initial != null) _selectKind(initial);
+    if (Firebase.apps.isNotEmpty) {
+      _familyOrderSub = _settingsRepo.streamDrinkFamilyOrderKeys().listen((keys) {
+        if (mounted) {
+          setState(
+            () => _familyOrderKeys = keys ?? defaultDrinkFamilyOrderKeys(),
+          );
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    _familyOrderSub?.cancel();
     _nameController.dispose();
     _priceController.dispose();
     _megaPriceController.dispose();
     super.dispose();
+  }
+
+  List<DrinkMenuFamily> _orderedDrinkFamilies() =>
+      sortDrinkFamiliesByOrderKeys(drinkMenuFamilies, _familyOrderKeys);
+
+  List<DrinkMenuFamily> _visibleDrinkFamilies(List<MenuItem> menus) {
+    return _orderedDrinkFamilies()
+        .where((f) => pairDrinkMenus(f, menus).isNotEmpty)
+        .toList();
+  }
+
+  Future<void> _onVisibleFamilyReorder(
+    int oldIndex,
+    int newIndex,
+    List<String> visibleKeys,
+  ) async {
+    final next = applyVisibleFamilyReorder(
+      fullOrder: _familyOrderKeys,
+      visibleKeys: visibleKeys,
+      oldIndex: oldIndex,
+      newIndex: newIndex,
+    );
+    setState(() => _familyOrderKeys = next);
+    if (Firebase.apps.isEmpty) return;
+    setState(() => _savingFamilyOrder = true);
+    try {
+      await _settingsRepo.saveDrinkFamilyOrderKeys(next);
+    } catch (e) {
+      if (mounted) _showMessage('並び順の保存に失敗しました: $e');
+    } finally {
+      if (mounted) setState(() => _savingFamilyOrder = false);
+    }
+  }
+
+  Future<void> _persistMenuSortOrders(Map<String, int> updates) async {
+    if (updates.isEmpty) return;
+    if (Firebase.apps.isEmpty) return;
+    setState(() => _savingItemOrder = true);
+    try {
+      await _repo.updateMenuSortOrders(updates);
+    } catch (e) {
+      if (mounted) _showMessage('メニュー順の保存に失敗しました: $e');
+    } finally {
+      if (mounted) setState(() => _savingItemOrder = false);
+    }
+  }
+
+  Future<void> _onMenuItemsReorder(
+    List<MenuItem> items,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    final ordered = reorderListAt(items, oldIndex, newIndex);
+    await _persistMenuSortOrders(
+      sortOrdersForOrderedIds(ordered.map((m) => m.id).toList()),
+    );
+  }
+
+  Future<void> _onPairItemsReorder(
+    List<DrinkMenuPair> pairs,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    final ordered = reorderListAt(pairs, oldIndex, newIndex);
+    final updates = <String, int>{};
+    for (var i = 0; i < ordered.length; i++) {
+      final order = (i + 1) * 10;
+      final pair = ordered[i];
+      if (pair.regular != null) updates[pair.regular!.id] = order;
+      if (pair.mega != null) updates[pair.mega!.id] = order;
+    }
+    await _persistMenuSortOrders(updates);
   }
 
   void _showMessage(String text) {
@@ -119,10 +225,27 @@ class _MenuEditPageState extends State<MenuEditPage> {
   void _selectFamily(DrinkMenuFamily family) {
     setState(() {
       _family = family;
+      _registerStorageCategory = null;
       _size = DrinkSize.regular;
       _drinkScope = _DrinkRegisterScope.regular;
-      _step = family.hasMega ? _RegisterStep.size : _RegisterStep.name;
+      if (family.isTequilaOthersGroup) {
+        _step = _RegisterStep.shotStorage;
+      } else {
+        _step = family.hasMega ? _RegisterStep.size : _RegisterStep.name;
+      }
     });
+  }
+
+  void _selectShotStorage(String category) {
+    setState(() {
+      _registerStorageCategory = category;
+      _step = _RegisterStep.name;
+    });
+  }
+
+  String _drinkRegisterCategory() {
+    if (_registerStorageCategory != null) return _registerStorageCategory!;
+    return _family!.categoryFor(_size);
   }
 
   void _goBack() {
@@ -132,11 +255,17 @@ class _MenuEditPageState extends State<MenuEditPage> {
           break;
         case _RegisterStep.family:
           _step = _RegisterStep.kind;
-        case _RegisterStep.size:
+        case _RegisterStep.shotStorage:
           _step = _RegisterStep.family;
+        case _RegisterStep.size:
+          _step = _family!.isTequilaOthersGroup
+              ? _RegisterStep.shotStorage
+              : _RegisterStep.family;
         case _RegisterStep.name:
           if (_kind != MenuRegisterKind.drink) {
             _step = _RegisterStep.kind;
+          } else if (_family!.isTequilaOthersGroup) {
+            _step = _RegisterStep.shotStorage;
           } else {
             _step = _family!.hasMega
                 ? _RegisterStep.size
@@ -210,7 +339,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
           name: name,
           category: _kind == MenuRegisterKind.goods
               ? 'DARTS_GOODS'
-              : _family!.categoryFor(_size),
+              : _drinkRegisterCategory(),
           priceTaxIncluded: regularPrice,
         );
       }
@@ -454,18 +583,69 @@ class _MenuEditPageState extends State<MenuEditPage> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final family in drinkMenuFamilies)
-              ChoiceChip(
-                label: Text(
-                  family.label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                selected: family == selected,
-                onSelected: (_) => onSelected(family),
+            for (final family in _orderedDrinkFamilies())
+              _familyChoiceChip(
+                family: family,
+                selected: selected?.key == family.key,
+                onSelected: () => onSelected(family),
               ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _familyChoiceChip({
+    required DrinkMenuFamily family,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    final color = DrinkFamilyTheme.colorForFamilyKey(family.key);
+    final fill = selected ? color.withValues(alpha: 0.95) : color;
+    return ChoiceChip(
+      label: DrinkFamilyStrokeLabel(
+        text: family.label,
+        fillColor: fill,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+      ),
+      selected: selected,
+      selectedColor: color.withValues(alpha: 0.22),
+      backgroundColor: color.withValues(alpha: 0.08),
+      side: BorderSide(
+        color: selected
+            ? color.withValues(alpha: 0.85)
+            : color.withValues(alpha: 0.35),
+        width: selected ? 2 : 1,
+      ),
+      onSelected: (_) => onSelected(),
+    );
+  }
+
+  Widget _shotStorageStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('テキーラ他の登録先を選んでください', style: _stepTitleStyle),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.tonal(
+                onPressed: () =>
+                    _selectShotStorage(kTequilaShotStorageCategory),
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 88)),
+                child: Text('テキーラ', style: _stepTitleStyle),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton.tonal(
+                onPressed: () =>
+                    _selectShotStorage(kOthersShotStorageCategory),
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 88)),
+                child: Text('アザー', style: _stepTitleStyle),
+              ),
+            ),
           ],
         ),
       ],
@@ -538,6 +718,12 @@ class _MenuEditPageState extends State<MenuEditPage> {
           _step.index > _RegisterStep.family.index)
         family.label,
       if (_kind == MenuRegisterKind.drink &&
+          _registerStorageCategory != null &&
+          _step.index > _RegisterStep.shotStorage.index)
+        _registerStorageCategory == kTequilaShotStorageCategory
+            ? 'テキーラ'
+            : 'アザー',
+      if (_kind == MenuRegisterKind.drink &&
           family != null &&
           family.hasMega &&
           _step.index > _RegisterStep.size.index)
@@ -554,6 +740,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
             (kind) => setState(() => _selectKind(kind)),
           ),
           _RegisterStep.family => _familyStep(_family, _selectFamily),
+          _RegisterStep.shotStorage => _shotStorageStep(),
           _RegisterStep.size => _sizeStep(
             (scope) => setState(() {
               _drinkScope = scope;
@@ -798,35 +985,160 @@ class _MenuEditPageState extends State<MenuEditPage> {
     );
   }
 
+  Widget _accordionTitleText(
+    String title, {
+    Color? accent,
+  }) {
+    final color = accent ?? Theme.of(context).colorScheme.primary;
+    if (accent != null) {
+      return DrinkFamilyStrokeLabel(
+        text: title,
+        fillColor: color,
+        style: _accordionTitleStyle,
+      );
+    }
+    return Text(title, style: _accordionTitleStyle, textAlign: TextAlign.center);
+  }
+
   Widget _menuAccordion({
     required String title,
     required String subtitle,
     required List<Widget> children,
+    Color? accent,
+    Key? key,
   }) {
     if (children.isEmpty) return const SizedBox.shrink();
+    final color = accent ?? Theme.of(context).colorScheme.primary;
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.only(top: 12),
       clipBehavior: Clip.antiAlias,
-      child: ExpansionTile(
-        initiallyExpanded: false,
-        title: Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text(subtitle),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: children,
+      elevation: 0,
+      color: scheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: color.withValues(alpha: 0.5), width: 1.5),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          key: key,
+          initiallyExpanded: false,
+          minTileHeight: 72,
+          iconColor: color,
+          collapsedIconColor: color,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          visualDensity: VisualDensity.standard,
+          title: SizedBox(
+            height: 64,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _accordionTitleText(title, accent: accent),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _listReorderSwitch({
+    required String firstLine,
+    required String secondLine,
+    required bool value,
+    required ValueChanged<bool>? onChanged,
+  }) {
+    final style = Theme.of(context).textTheme.titleSmall?.copyWith(
+      fontWeight: FontWeight.w600,
+      height: 1.25,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: style,
+                children: [
+                  TextSpan(text: '$firstLine\n'),
+                  TextSpan(text: secondLine),
+                ],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          Switch(value: value, onChanged: onChanged),
         ],
+      ),
+    );
+  }
+
+  Widget _familyReorderTile({
+    required Key key,
+    required int index,
+    required DrinkMenuFamily family,
+    required int itemCount,
+  }) {
+    final color = DrinkFamilyTheme.colorForFamilyKey(family.key);
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      key: key,
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      color: scheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: color.withValues(alpha: 0.5), width: 1.5),
+      ),
+      child: SizedBox(
+        height: 72,
+        child: Row(
+          children: [
+            ReorderableDragStartListener(
+              index: index,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(Icons.drag_handle, color: color),
+              ),
+            ),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _accordionTitleText(family.label, accent: color),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$itemCount件',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 40),
+          ],
+        ),
       ),
     );
   }
@@ -845,7 +1157,8 @@ class _MenuEditPageState extends State<MenuEditPage> {
         if (menus.isEmpty) {
           return const Center(child: Text('登録されたメニューがありません'));
         }
-        final foods = menus.where(isRegisteredFoodMenu).toList();
+        final foods = menus.where(isRegisteredFoodMenu).toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
         final others = <String, List<MenuItem>>{};
         for (final m in menus) {
           if (isRegisteredFoodMenu(m) ||
@@ -854,43 +1167,191 @@ class _MenuEditPageState extends State<MenuEditPage> {
           }
           others.putIfAbsent(m.category, () => []).add(m);
         }
-        return ListView(
-          children: [
-            Text(
-              'スイッチ切替で注文非表示に変更（休止）。\n'
-              '価格変更は、一度削除してから再登録。',
-              style: Theme.of(context).textTheme.bodyMedium,
+        for (final list in others.values) {
+          list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        }
+        final visibleFamilies = _visibleDrinkFamilies(menus);
+        final visibleKeys = visibleFamilies.map((f) => f.key).toList();
+        final trailingSections = <Widget>[
+          if (foods.isNotEmpty)
+            _menuAccordion(
+              key: const ValueKey('accordion-food'),
+              title: MenuCategoryCatalog.labelFor(kFoodRegisteredCategory),
+              subtitle: '${foods.length}件',
+              children: _menuSectionChildren(foods),
             ),
-            for (final family in drinkMenuFamilies)
-              _familyAccordion(family, menus),
-            if (foods.isNotEmpty)
-              _menuAccordion(
-                title: MenuCategoryCatalog.labelFor(kFoodRegisteredCategory),
-                subtitle: '${foods.length}件',
-                children: [for (final m in foods) _menuTile(m)],
+          for (final entry in others.entries)
+            _menuAccordion(
+              title: MenuCategoryCatalog.labelFor(entry.key),
+              subtitle: '${entry.value.length}件',
+              children: _menuSectionChildren(entry.value),
+            ),
+        ];
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _listReorderSwitch(
+              firstLine: 'ドリンクカテゴリの',
+              secondLine: '並べ替え',
+              value: _listReorderMode,
+              onChanged: _savingFamilyOrder || _savingItemOrder
+                  ? null
+                  : (value) => setState(() {
+                      _listReorderMode = value;
+                      if (value) _itemReorderMode = false;
+                    }),
+            ),
+            _listReorderSwitch(
+              firstLine: 'ドリンクメニューの',
+              secondLine: '並べ替え',
+              value: _itemReorderMode,
+              onChanged: _savingItemOrder ||
+                      _savingFamilyOrder ||
+                      _listReorderMode
+                  ? null
+                  : (value) => setState(() => _itemReorderMode = value),
+            ),
+            if (_savingFamilyOrder || _savingItemOrder)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: LinearProgressIndicator(),
               ),
-            for (final entry in others.entries)
-              _menuAccordion(
-                title: MenuCategoryCatalog.labelFor(entry.key),
-                subtitle: '${entry.value.length}件',
-                children: [for (final m in entry.value) _menuTile(m)],
-              ),
+            Expanded(
+              child: _listReorderMode
+                  ? ReorderableListView(
+                      padding: EdgeInsets.zero,
+                      onReorder: (oldIndex, newIndex) => _onVisibleFamilyReorder(
+                        oldIndex,
+                        newIndex,
+                        visibleKeys,
+                      ),
+                      children: [
+                        for (var i = 0; i < visibleFamilies.length; i++)
+                          _familyReorderTile(
+                            key: ValueKey(visibleFamilies[i].key),
+                            index: i,
+                            family: visibleFamilies[i],
+                            itemCount:
+                                pairDrinkMenus(visibleFamilies[i], menus).length,
+                          ),
+                      ],
+                    )
+                  : ListView(
+                      children: [
+                        for (final family in visibleFamilies)
+                          _familyAccordion(family, menus),
+                        ...trailingSections,
+                      ],
+                    ),
+            ),
           ],
         );
       },
     );
   }
 
+  List<Widget> _menuSectionChildren(List<MenuItem> items) {
+    if (items.isEmpty) return const [];
+    if (!_itemReorderMode || _listReorderMode) {
+      return [for (final m in items) _menuTile(m)];
+    }
+    return [_reorderableMenuList(items)];
+  }
+
+  Widget _reorderableMenuList(List<MenuItem> items) {
+    return ReorderableListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      onReorder: (oldIndex, newIndex) =>
+          _onMenuItemsReorder(items, oldIndex, newIndex),
+      children: [
+        for (var i = 0; i < items.length; i++)
+          _menuReorderTile(menu: items[i], index: i),
+      ],
+    );
+  }
+
+  Widget _reorderablePairList(List<DrinkMenuPair> pairs) {
+    return ReorderableListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      onReorder: (oldIndex, newIndex) =>
+          _onPairItemsReorder(pairs, oldIndex, newIndex),
+      children: [
+        for (var i = 0; i < pairs.length; i++)
+          _pairReorderTile(pair: pairs[i], index: i),
+      ],
+    );
+  }
+
+  Widget _menuReorderTile({required MenuItem menu, required int index}) {
+    return Card(
+      key: ValueKey('menu-order-${menu.id}'),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: ReorderableDragStartListener(
+          index: index,
+          child: const Icon(Icons.drag_handle),
+        ),
+        title: Text(
+          menu.name,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(_currency.format(menu.priceTaxIncluded)),
+      ),
+    );
+  }
+
+  Widget _pairReorderTile({required DrinkMenuPair pair, required int index}) {
+    final id = pair.regular?.id ?? pair.mega?.id ?? pair.displayName;
+    return Card(
+      key: ValueKey('pair-order-$id'),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: ReorderableDragStartListener(
+          index: index,
+          child: const Icon(Icons.drag_handle),
+        ),
+        title: Text(
+          pair.displayName,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        subtitle: Text(
+          [
+            if (pair.regular != null)
+              '通常 ${_currency.format(pair.regular!.priceTaxIncluded)}',
+            if (pair.mega != null)
+              'メガ ${_currency.format(pair.mega!.priceTaxIncluded)}',
+          ].join(' / '),
+        ),
+      ),
+    );
+  }
+
   Widget _familyAccordion(DrinkMenuFamily family, List<MenuItem> menus) {
     final pairs = pairDrinkMenus(family, menus);
     if (pairs.isEmpty) return const SizedBox.shrink();
-    final children = [
-      for (final pair in pairs)
-        if (family.hasMega) _pairCard(pair) else _menuTile(pair.regular!),
-    ];
+    final List<Widget> children;
+    if (_itemReorderMode && !_listReorderMode) {
+      children = family.hasMega
+          ? [_reorderablePairList(pairs)]
+          : _menuSectionChildren(
+              pairs.map((p) => p.regular!).toList(),
+            );
+    } else {
+      children = [
+        for (final pair in pairs)
+          if (family.hasMega) _pairCard(pair) else _menuTile(pair.regular!),
+      ];
+    }
     return _menuAccordion(
+      key: ValueKey('accordion-${family.key}'),
       title: family.label,
       subtitle: '${pairs.length}件',
+      accent: DrinkFamilyTheme.colorForFamilyKey(family.key),
       children: children,
     );
   }
@@ -1077,11 +1538,7 @@ class _MenuEditPageState extends State<MenuEditPage> {
   }
 
   Widget _buildRemoveItems() {
-    final category = _removeKind == MenuRegisterKind.food
-        ? kFoodRegisteredCategory
-        : _removeKind == MenuRegisterKind.goods
-        ? 'DARTS_GOODS'
-        : _removeFamily!.categoryFor(_removeSize);
+    final family = _removeFamily;
     return StreamBuilder<List<MenuItem>>(
       stream: _repo.streamAllMenus(),
       builder: (context, snapshot) {
@@ -1091,9 +1548,15 @@ class _MenuEditPageState extends State<MenuEditPage> {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final items = snapshot.data!
-            .where((m) => m.category == category)
-            .toList();
+        final items = snapshot.data!.where((m) {
+          if (_removeKind == MenuRegisterKind.food) {
+            return m.category == kFoodRegisteredCategory;
+          }
+          if (_removeKind == MenuRegisterKind.goods) {
+            return m.category == 'DARTS_GOODS';
+          }
+          return family!.contains(m.category);
+        }).toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

@@ -123,6 +123,19 @@ class MenuRepository {
     await _menus.doc(menuId).update({'isActive': isActive});
   }
 
+  /// 表示順のみ更新（名前・単価・カテゴリは変更しない）。
+  Future<void> updateMenuSortOrders(Map<String, int> ordersByMenuId) async {
+    if (ordersByMenuId.isEmpty) return;
+    final batch = _firestore.batch();
+    for (final entry in ordersByMenuId.entries) {
+      if (entry.value < 0 || entry.value > 1000000) {
+        throw ArgumentError('sortOrder が不正です: ${entry.value}');
+      }
+      batch.update(_menus.doc(entry.key), {'sortOrder': entry.value});
+    }
+    await batch.commit();
+  }
+
   Query<Map<String, dynamic>> get _foodMenus =>
       _menus.where('category', isEqualTo: kFoodRegisteredCategory);
 

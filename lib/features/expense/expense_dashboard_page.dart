@@ -10,7 +10,7 @@ import 'expense_account_picker.dart';
 import '../admin/admin_login_dialog.dart';
 import '../admin/expense_summary_admin_page.dart';
 import '../admin/store_user_permissions_page.dart';
-import '../home/home_page.dart';
+import '../shared/staff_module_navigation.dart';
 
 class ExpenseDashboardPage extends StatefulWidget {
   const ExpenseDashboardPage({super.key});
@@ -133,12 +133,8 @@ class _ExpenseDashboardPageState extends State<ExpenseDashboardPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('経費ダッシュボード'),
-        actions: [
-          IconButton(
-            tooltip: 'アプリホーム（会計）',
-            icon: const Icon(Icons.dashboard_customize_outlined),
-            onPressed: () => Navigator.pushNamed(context, HomePage.routeName),
-          ),
+        actions: const [
+          StaffModuleSwitchAction(current: StaffHubModule.expense),
         ],
       ),
       body: SafeArea(

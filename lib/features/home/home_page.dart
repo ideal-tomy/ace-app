@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/admin_auth_service.dart';
 import '../../core/business_mode.dart';
+import '../../core/store_brand_colors.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../models/check_item.dart';
 import '../../models/check_summary.dart';
@@ -18,6 +19,7 @@ import '../order/order_page.dart';
 import '../shared/business_mode_badge.dart';
 import '../shared/check_billing_utils.dart';
 import '../shared/search_clear_field.dart';
+import '../shared/staff_module_navigation.dart';
 import '../visit/visit_register_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -271,14 +273,14 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: StoreBrandColors.homeBackground,
       appBar: AppBar(
+        backgroundColor: StoreBrandColors.homeBackground,
         title: const Text('簡易会計アプリ'),
         actions: [
-          IconButton(
-            tooltip: '会計一覧',
-            onPressed: () =>
-                Navigator.pushNamed(context, CheckoutPage.routeName),
-            icon: const Icon(Icons.receipt_long),
+          StaffModuleSwitchAction(
+            current: StaffHubModule.accounting,
+            adminAuthService: _adminAuthService,
           ),
         ],
       ),
@@ -293,21 +295,23 @@ class _HomePageState extends State<HomePage> {
                   Row(
                     children: [
                       Expanded(
-                        child: _navigationButton(
-                          '来店登録',
-                          Icons.person_add_alt_1,
-                          _openVisitRegister,
+                        child: _homeNavigationButton(
+                          label: '来店登録',
+                          icon: Icons.person_add_alt_1,
+                          onPressed: _openVisitRegister,
+                          variant: _HomeNavButtonVariant.visit,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: _navigationButton(
-                          '会計',
-                          Icons.receipt_long,
-                          () => Navigator.pushNamed(
+                        child: _homeNavigationButton(
+                          label: '会計',
+                          icon: Icons.receipt_long,
+                          onPressed: () => Navigator.pushNamed(
                             context,
                             CheckoutPage.routeName,
                           ),
+                          variant: _HomeNavButtonVariant.checkout,
                         ),
                       ),
                     ],
@@ -316,24 +320,26 @@ class _HomePageState extends State<HomePage> {
                   Row(
                     children: [
                       Expanded(
-                        child: _navigationButton(
-                          '商品登録',
-                          Icons.menu_book_outlined,
-                          () => Navigator.pushNamed(
+                        child: _homeNavigationButton(
+                          label: '商品登録',
+                          icon: Icons.menu_book_outlined,
+                          onPressed: () => Navigator.pushNamed(
                             context,
                             MenuEditPage.routeName,
                           ),
+                          variant: _HomeNavButtonVariant.outline,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: _navigationButton(
-                          '日別売上',
-                          Icons.bar_chart,
-                          () => Navigator.pushNamed(
+                        child: _homeNavigationButton(
+                          label: '日別売上',
+                          icon: Icons.bar_chart,
+                          onPressed: () => Navigator.pushNamed(
                             context,
                             SalesSummaryAdminPage.routeName,
                           ),
+                          variant: _HomeNavButtonVariant.outline,
                         ),
                       ),
                     ],
@@ -417,15 +423,83 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-Widget _navigationButton(String label, IconData icon, VoidCallback onPressed) {
-  return FilledButton.icon(
-    onPressed: onPressed,
-    style: FilledButton.styleFrom(
-      minimumSize: const Size(0, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+enum _HomeNavButtonVariant { visit, checkout, outline }
+
+/// 2×2 グリッド用。アイコン行の高さを揃え、ラベルは下段に固定。
+Widget _homeNavigationButton({
+  required String label,
+  required IconData icon,
+  required VoidCallback onPressed,
+  required _HomeNavButtonVariant variant,
+}) {
+  final Color background;
+  final Color foreground;
+  final Color? border;
+  switch (variant) {
+    case _HomeNavButtonVariant.visit:
+      background = StoreBrandColors.charcoal;
+      foreground = Colors.white;
+      border = null;
+    case _HomeNavButtonVariant.checkout:
+      background = StoreBrandColors.mutedRed;
+      foreground = Colors.white;
+      border = null;
+    case _HomeNavButtonVariant.outline:
+      background = StoreBrandColors.outlineButtonFill;
+      foreground = StoreBrandColors.charcoal;
+      border = StoreBrandColors.outlineButtonBorder;
+  }
+
+  const iconBandHeight = 32.0;
+  const labelStyle = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w700,
+    height: 1.15,
+  );
+
+  return Material(
+    color: background,
+    elevation: 0,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(28),
+      side: border != null
+          ? BorderSide(color: border, width: 1.2)
+          : BorderSide.none,
     ),
-    icon: Icon(icon, size: 20),
-    label: Text(label, maxLines: 1),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onPressed,
+      child: SizedBox(
+        height: 76,
+        width: double.infinity,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: iconBandHeight,
+                child: Center(
+                  child: Icon(icon, size: 26, color: foreground),
+                ),
+              ),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: labelStyle.copyWith(color: foreground),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
   );
 }
 

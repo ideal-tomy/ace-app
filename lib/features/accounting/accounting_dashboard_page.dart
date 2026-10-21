@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../checkout/checkout_page.dart';
-import '../home/home_page.dart';
+import '../shared/staff_module_navigation.dart';
 
 class AccountingDashboardPage extends StatelessWidget {
   const AccountingDashboardPage({super.key});
@@ -13,12 +13,8 @@ class AccountingDashboardPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('会計ダッシュボード'),
-        actions: [
-          IconButton(
-            tooltip: 'アプリホーム',
-            icon: const Icon(Icons.dashboard_customize_outlined),
-            onPressed: () => Navigator.pushNamed(context, HomePage.routeName),
-          ),
+        actions: const [
+          StaffModuleSwitchAction(current: StaffHubModule.accounting),
         ],
       ),
       body: SafeArea(

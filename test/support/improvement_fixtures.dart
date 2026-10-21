@@ -10,6 +10,10 @@ import 'memory_firestore.dart';
 class StaffAuth implements AdminAuthService {
   @override
   Future<bool> canAccessAccounting() async => true;
+
+  @override
+  Future<bool> canPostExpense() async => true;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

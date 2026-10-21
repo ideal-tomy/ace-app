@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/business_mode.dart';
+import '../../core/store_brand_colors.dart';
 import '../shared/business_mode_badge.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../data/repositories/customer_repository.dart';
@@ -159,6 +160,13 @@ class _VisitRegisterPageState extends State<VisitRegisterPage> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _saving ? null : _register,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: StoreBrandColors.charcoal,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        StoreBrandColors.charcoal.withValues(alpha: 0.45),
+                    disabledForegroundColor: Colors.white.withValues(alpha: 0.8),
+                  ),
                   child: Text(_saving ? '登録中...' : '来店登録して伝票作成'),
                 ),
               ),
@@ -225,6 +233,10 @@ class _BusinessModeConfirmDialogState extends State<_BusinessModeConfirmDialog> 
           onPressed: _selectedMode == null
               ? null
               : () => Navigator.pop(context, _selectedMode),
+          style: FilledButton.styleFrom(
+            backgroundColor: StoreBrandColors.charcoal,
+            foregroundColor: Colors.white,
+          ),
           child: const Text('登録する'),
         ),
       ],

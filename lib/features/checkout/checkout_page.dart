@@ -4,6 +4,7 @@ import '../../core/admin_auth_service.dart';
 import '../../data/repositories/check_repository.dart';
 import '../../models/person_option.dart';
 import '../shared/person_picker_list.dart';
+import '../shared/staff_module_navigation.dart';
 import 'checkout_detail_sheet.dart';
 
 class CheckoutPage extends StatefulWidget {
@@ -49,7 +50,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('会計')),
+      appBar: AppBar(
+        title: const Text('会計'),
+        actions: const [
+          StaffModuleSwitchAction(current: StaffHubModule.accounting),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -1,5 +1,4 @@
 import '../../core/billing_rules.dart';
-import '../../core/business_mode.dart';
 import '../../models/check_item.dart';
 import '../../models/check_summary.dart';
 
@@ -18,8 +17,7 @@ int checkDisplayTotal({
     return summary.finalAmount!;
   }
   // イベントのみなら明細合計、通常（切替含む）なら明細＋時間料金。
-  if (summary.billingMode == BusinessMode.normal ||
-      summary.switchedFromEvent) {
+  if (summary.hasNormalBilling || summary.switchedFromEvent) {
     return breakdown.grandTotal;
   }
   return summary.totalTaxIncluded > 0

@@ -112,7 +112,12 @@ class _CheckoutStaffBillingCardState extends State<CheckoutStaffBillingCard> {
               const SizedBox(height: 16),
               StaffTimeAdjustControls(
                 summary: summary,
-                breakdown: breakdown,
+                breakdown: buildBillingBreakdown(
+                  summary: summary,
+                  items: widget.items,
+                  now: DateTime.now(),
+                  includeCompletedPeriods: false,
+                ),
                 enabled: widget.timeAdjustEnabled,
                 onChanged: widget.onBilledMinutesChanged!,
               ),
@@ -141,9 +146,9 @@ class _CheckoutStaffBillingCardState extends State<CheckoutStaffBillingCard> {
         children: [
           Text(
             label,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           const Spacer(),
           Text(
@@ -185,6 +190,8 @@ class StaffTimeAdjustControls extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (summary.normalBillingPeriods.isNotEmpty)
+          const Text('今回の通常営業の会計対象時間', textAlign: TextAlign.center),
         Text(
           formatStayDuration(Duration(minutes: minutes)),
           textAlign: TextAlign.center,

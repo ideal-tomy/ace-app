@@ -69,6 +69,18 @@ BusinessMode resolveItemBilledAs({
   required CheckSummary summary,
 }) {
   if (item.billedAs != null) return item.billedAs!;
+  if (summary.normalBillingPeriods.isNotEmpty) {
+    for (final period in summary.normalBillingPeriods) {
+      if (!item.orderedAt.isBefore(period.startedAt) &&
+          item.orderedAt.isBefore(period.endedAt)) {
+        return BusinessMode.normal;
+      }
+    }
+    final start = summary.effectiveNomihodaiStartedAt;
+    return start != null && !item.orderedAt.isBefore(start)
+        ? BusinessMode.normal
+        : BusinessMode.event;
+  }
   final nomihodaiAt = summary.nomihodaiStartedAt;
   if (nomihodaiAt != null) {
     return !item.orderedAt.isBefore(nomihodaiAt)
@@ -83,6 +95,7 @@ BillingBreakdown buildBillingBreakdown({
   required CheckSummary summary,
   required List<CheckItem> items,
   required DateTime now,
+  bool includeCompletedPeriods = true,
 }) {
   var merchandise = 0;
   var eventItemsTotal = 0;
@@ -125,12 +138,33 @@ BillingBreakdown buildBillingBreakdown({
   final elapsed = isNormal
       ? billingNow.difference(nomihodaiStart)
       : Duration.zero;
-  final safeElapsed = elapsed.isNegative ? Duration.zero : elapsed;
-  final autoPerPerson = isNormal ? calcTimeCharge(safeElapsed) : 0;
+  var safeElapsed = elapsed.isNegative ? Duration.zero : elapsed;
+  var autoPerPerson = isNormal ? calcTimeCharge(safeElapsed) : 0;
   final override = isNormal ? summary.billingBilledMinutes : null;
-  final chargePerPerson = override != null
+  var chargePerPerson = override != null
       ? calcTimeCharge(Duration(minutes: override))
       : autoPerPerson;
+  var autoMinutes = isNormal ? billedMinutesFor(safeElapsed) : 0;
+  var chargedMinutes = override ?? autoMinutes;
+  for (final period
+      in includeCompletedPeriods
+          ? summary.normalBillingPeriods
+          : <NormalBillingPeriod>[]) {
+    final end = effectiveBillingNow(
+      visitStartedAt: summary.createdAt,
+      now: period.endedAt,
+    );
+    final duration = end.difference(period.startedAt);
+    final safe = duration.isNegative ? Duration.zero : duration;
+    final minutes = billedMinutesFor(safe);
+    autoMinutes += minutes;
+    chargedMinutes += period.billedMinutes ?? minutes;
+    autoPerPerson += calcTimeCharge(safe);
+    chargePerPerson += calcTimeCharge(
+      Duration(minutes: period.billedMinutes ?? minutes),
+    );
+    safeElapsed += safe;
+  }
   final charge = chargePerPerson * peopleCount;
   final foodWithTimeCharge = foodBase + charge;
   return BillingBreakdown(
@@ -143,8 +177,15 @@ BillingBreakdown buildBillingBreakdown({
     normalItemsTotal: normalItemsTotal,
     timeChargeAuto: autoPerPerson * peopleCount,
     billingElapsed: safeElapsed,
-    autoBilledMinutes: isNormal ? billedMinutesFor(safeElapsed) : 0,
-    billedMinutesOverride: override,
+    autoBilledMinutes: autoMinutes,
+    billedMinutesOverride:
+        override != null ||
+            (includeCompletedPeriods &&
+                summary.normalBillingPeriods.any(
+                  (p) => p.billedMinutes != null,
+                ))
+        ? chargedMinutes
+        : null,
   );
 }
 

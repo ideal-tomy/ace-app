@@ -34,6 +34,7 @@ class CheckSummary {
     this.timeChargeAutoFinal,
     this.timeChargeAdjustmentAmount,
     this.actualStayMinutesFinal,
+    this.normalBillingPeriods = const [],
   });
 
   final String id;
@@ -76,6 +77,11 @@ class CheckSummary {
   /// 会計確定時点の実滞在（分）。
   final int? actualStayMinutesFinal;
 
+  /// 終了した通常営業の区間。イベント中は時間料金が増えない。
+  final List<NormalBillingPeriod> normalBillingPeriods;
+  bool get hasNormalBilling =>
+      billingMode == BusinessMode.normal || normalBillingPeriods.isNotEmpty;
+
   bool get isOpen => status == 'open';
   bool get isVoided => status == 'voided';
   bool get isPaid => status == 'paid';
@@ -87,6 +93,9 @@ class CheckSummary {
   }
 
   String get modeBadgeLabel {
+    if (normalBillingPeriods.isNotEmpty) {
+      return billingMode == BusinessMode.event ? '通常→イベント' : 'イベント→通常';
+    }
     if (switchedFromEvent && billingMode == BusinessMode.normal) {
       return 'イベント→通常';
     }
@@ -141,6 +150,31 @@ class CheckSummary {
       timeChargeAdjustmentAmount: (map['timeChargeAdjustmentAmount'] as num?)
           ?.toInt(),
       actualStayMinutesFinal: (map['actualStayMinutesFinal'] as num?)?.toInt(),
+      normalBillingPeriods: (map['normalBillingPeriods'] as List? ?? const [])
+          .map(
+            (value) => NormalBillingPeriod.fromMap(
+              Map<String, dynamic>.from(value as Map),
+            ),
+          )
+          .toList(),
     );
   }
+}
+
+class NormalBillingPeriod {
+  const NormalBillingPeriod({
+    required this.startedAt,
+    required this.endedAt,
+    this.billedMinutes,
+  });
+  final DateTime startedAt;
+  final DateTime endedAt;
+  final int? billedMinutes;
+
+  factory NormalBillingPeriod.fromMap(Map<String, dynamic> map) =>
+      NormalBillingPeriod(
+        startedAt: (map['startedAt'] as Timestamp).toDate(),
+        endedAt: (map['endedAt'] as Timestamp).toDate(),
+        billedMinutes: (map['billedMinutes'] as num?)?.toInt(),
+      );
 }

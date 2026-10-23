@@ -177,6 +177,37 @@ class CheckRepository {
     });
   }
 
+  Future<void> switchToEvent(String checkId) async {
+    final docRef = _checks.doc(checkId);
+    await _firestore.runTransaction((txn) async {
+      final snap = await txn.get(docRef);
+      if (!snap.exists || snap.data() == null) {
+        throw StateError('伝票が存在しません。');
+      }
+      final data = snap.data()!;
+      final summary = CheckSummary.fromMap(snap.id, data);
+      if (!summary.isOpen) throw StateError('未会計の伝票のみ切り替えできます。');
+      if (summary.billingMode != BusinessMode.normal) {
+        throw StateError('すでにイベント営業です。');
+      }
+      final end = _now();
+      final start = summary.effectiveNomihodaiStartedAt!;
+      if (end.isBefore(start)) throw StateError('開始時刻より前には切り替えできません。');
+      txn.update(docRef, {
+        'billingMode': BusinessMode.event.firestoreValue,
+        'normalBillingPeriods': [
+          ...?data['normalBillingPeriods'] as List?,
+          {
+            'startedAt': Timestamp.fromDate(start),
+            'endedAt': Timestamp.fromDate(end),
+            'billedMinutes': summary.billingBilledMinutes,
+          },
+        ],
+        'billingBilledMinutes': null,
+      });
+    });
+  }
+
   Future<AddedOrderItem> addOrderItem({
     required String checkId,
     required MenuItem menu,

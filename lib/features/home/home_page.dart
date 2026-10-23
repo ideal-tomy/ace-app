@@ -17,6 +17,7 @@ import '../checkout/checkout_page.dart';
 import '../order/open_order_flow.dart';
 import '../order/order_page.dart';
 import '../shared/business_mode_badge.dart';
+import '../shared/logout_action.dart';
 import '../shared/check_billing_utils.dart';
 import '../shared/search_clear_field.dart';
 import '../shared/staff_module_navigation.dart';
@@ -133,13 +134,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _switchToNomihodai(CheckSummary summary) async {
+    final toEvent = summary.billingMode == BusinessMode.normal;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('投げ放題に切り替えますか？'),
+        title: Text(toEvent ? 'イベント営業に切り替えますか？' : '投げ放題に切り替えますか？'),
         content: Text(
           '${summary.customerNameSnapshot} さん\n'
-          'これから時間料金が始まります。これまでの注文はそのまま残ります。',
+          '${toEvent ? 'ここまでの時間料金を残し、以後の時間料金を止めます。' : 'これから時間料金が始まります。'}これまでの注文はそのまま残ります。',
         ),
         actions: [
           TextButton(
@@ -155,11 +157,17 @@ class _HomePageState extends State<HomePage> {
     );
     if (ok != true || !mounted) return;
     try {
-      await _checkRepository.switchToNomihodai(summary.id);
+      if (toEvent) {
+        await _checkRepository.switchToEvent(summary.id);
+      } else {
+        await _checkRepository.switchToNomihodai(summary.id);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${summary.customerNameSnapshot} さんを投げ放題に切り替えました'),
+          content: Text(
+            '${summary.customerNameSnapshot} さんを${toEvent ? 'イベント営業' : '投げ放題'}に切り替えました',
+          ),
         ),
       );
     } catch (e) {
@@ -282,6 +290,7 @@ class _HomePageState extends State<HomePage> {
             current: StaffHubModule.accounting,
             adminAuthService: _adminAuthService,
           ),
+          LogoutAction(adminAuthService: _adminAuthService),
         ],
       ),
       body: SafeArea(
@@ -407,9 +416,7 @@ class _HomePageState extends State<HomePage> {
                         onCheckout: () => _openCheckoutFor(summary),
                         onItems: () => _openItemsFor(summary),
                         onVoid: () => _voidCheck(summary),
-                        onSwitch: summary.billingMode == BusinessMode.event
-                            ? () => _switchToNomihodai(summary)
-                            : null,
+                        onSwitch: () => _switchToNomihodai(summary),
                       );
                     },
                   );
@@ -479,9 +486,7 @@ Widget _homeNavigationButton({
             children: [
               SizedBox(
                 height: iconBandHeight,
-                child: Center(
-                  child: Icon(icon, size: 26, color: foreground),
-                ),
+                child: Center(child: Icon(icon, size: 26, color: foreground)),
               ),
               Expanded(
                 child: Align(
@@ -648,9 +653,13 @@ class _OpenCheckCard extends StatelessWidget {
                           child: Text('明細を確認'),
                         ),
                         if (onSwitch != null)
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: _CheckAction.switchMode,
-                            child: Text('投げ放題に切替'),
+                            child: Text(
+                              summary.billingMode == BusinessMode.normal
+                                  ? 'イベント営業に切替'
+                                  : '投げ放題に切替',
+                            ),
                           ),
                         const PopupMenuItem(
                           value: _CheckAction.voidCheck,

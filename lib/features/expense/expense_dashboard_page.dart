@@ -11,6 +11,7 @@ import '../admin/admin_login_dialog.dart';
 import '../admin/expense_summary_admin_page.dart';
 import '../admin/store_user_permissions_page.dart';
 import '../shared/staff_module_navigation.dart';
+import '../shared/logout_action.dart';
 
 class ExpenseDashboardPage extends StatefulWidget {
   const ExpenseDashboardPage({super.key});
@@ -135,6 +136,7 @@ class _ExpenseDashboardPageState extends State<ExpenseDashboardPage> {
         title: const Text('経費ダッシュボード'),
         actions: const [
           StaffModuleSwitchAction(current: StaffHubModule.expense),
+          LogoutAction(),
         ],
       ),
       body: SafeArea(

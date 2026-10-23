@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../checkout/checkout_page.dart';
 import '../shared/staff_module_navigation.dart';
+import '../shared/logout_action.dart';
 
 class AccountingDashboardPage extends StatelessWidget {
   const AccountingDashboardPage({super.key});
@@ -15,6 +16,7 @@ class AccountingDashboardPage extends StatelessWidget {
         title: const Text('会計ダッシュボード'),
         actions: const [
           StaffModuleSwitchAction(current: StaffHubModule.accounting),
+          LogoutAction(),
         ],
       ),
       body: SafeArea(

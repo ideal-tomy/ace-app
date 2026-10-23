@@ -1,0 +1,18 @@
+{
+  "score": 3,
+  "summary": "通常→イベント切替の差分を静的確認。checks の読書きは既存の canAccounting(storeId) に限定し、会計済みの金額・営業区間の変更を許可する経路は追加していない。イベント伝票に終了済み通常区間がある場合も正の会計対象時間を確定できるようにした。エミュレータでのルール検証は未実施。",
+  "data_model": {
+    "path": "stores/{storeId}/checks/{checkId}",
+    "normalBillingPeriods": "終了した通常営業区間の配列。各要素は startedAt/endedAt Timestamp と任意の billedMinutes。通常→イベントのトランザクションで追加する。",
+    "queries": "既存の status == open、伝票ドキュメント監視、items の orderedAt 降順を継続。追加クエリなし。",
+    "finalization": "通常区間ごとの時間料金と注文金額を通常売上に保存。確定時は finalAmount == eventAmountFinal + normalAmountFinal など既存検証を継続。"
+  },
+  "findings": [
+    {
+      "check": "Update Bypass / Type Safety / Storage Abuse",
+      "severity": "moderate",
+      "issue": "既存の open→open 更新は会計権限者に幅広いフィールド更新を許可している。新しい区間配列についても全要素の型・順序・サイズをルールでは検証していない。Repository は状態・日時を検証するが直接SDK呼出しの代替防御にはならない。",
+      "recommendation": "別途、既存伝票との互換性を確認したうえで create/update 共通の伝票スキーマ検証と営業区間の追記制約を導入し、エミュレータで不正更新拒否を検証する。"
+    }
+  ]
+}

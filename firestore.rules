@@ -97,7 +97,11 @@ service cloud.firestore {
         (
           (data.billingMode == 'event' &&
             data.billingAutoBilledMinutesFinal == 0 && data.billingBilledMinutesFinal == 0) ||
-          (data.billingMode == 'normal' &&
+          ((data.billingMode == 'normal' ||
+              (data.billingMode == 'event' &&
+                'normalBillingPeriods' in data &&
+                data.normalBillingPeriods is list &&
+                data.normalBillingPeriods.size() > 0)) &&
             data.billingBilledMinutesFinal >= 60 &&
             data.billingBilledMinutesFinal % 30 == 0 &&
             data.billingAutoBilledMinutesFinal >= 60 &&

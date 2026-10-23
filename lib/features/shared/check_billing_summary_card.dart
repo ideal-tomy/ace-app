@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/billing_rules.dart';
-import '../../core/business_mode.dart';
 import '../../core/payment_method.dart';
 import '../../models/check_item.dart';
 import '../../models/check_summary.dart';
@@ -28,7 +27,7 @@ class CheckBillingSummaryCard extends StatelessWidget {
       items: items,
       now: now,
     );
-    final isNormal = summary.billingMode == BusinessMode.normal;
+    final isNormal = summary.hasNormalBilling;
     final isPaid = summary.status == 'paid';
     final isCappedAtClosing =
         !isPaid &&
@@ -73,6 +72,10 @@ class CheckBillingSummaryCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   Text('営業モード: ${summary.modeBadgeLabel}'),
+                  for (final period in summary.normalBillingPeriods)
+                    Text(
+                      '通常営業: ${DateFormat('HH:mm').format(period.startedAt)}〜${DateFormat('HH:mm').format(period.endedAt)}（時間料金停止済み）',
+                    ),
                   Text(
                     '登録時間: ${DateFormat('yyyy/MM/dd HH:mm').format(summary.createdAt)}',
                   ),

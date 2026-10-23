@@ -11,10 +11,7 @@ import '../../models/person_option.dart';
 import '../shared/check_item_actions.dart';
 import 'checkout_staff_billing_card.dart';
 
-const _checkoutNameStyle = TextStyle(
-  fontSize: 22,
-  fontWeight: FontWeight.w700,
-);
+const _checkoutNameStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.w700);
 
 const _paymentMethodLabelStyle = TextStyle(
   fontSize: 14,
@@ -153,11 +150,16 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
 
   Future<void> _switchToNomihodai(CheckSummary summary) async {
     if (_switching) return;
+    final toEvent = summary.billingMode == BusinessMode.normal;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('投げ放題に切り替えますか？'),
-        content: const Text('これから時間料金が始まります。これまでの注文はそのまま残ります。'),
+        title: Text(toEvent ? 'イベント営業に切り替えますか？' : '投げ放題に切り替えますか？'),
+        content: Text(
+          toEvent
+              ? 'ここまでの時間料金を残し、以後の時間料金を止めます。これまでの注文はそのまま残ります。'
+              : 'これから時間料金が始まります。これまでの注文はそのまま残ります。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -173,11 +175,15 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
     if (ok != true || !mounted) return;
     setState(() => _switching = true);
     try {
-      await widget.checkRepository.switchToNomihodai(summary.id);
+      if (toEvent) {
+        await widget.checkRepository.switchToEvent(summary.id);
+      } else {
+        await widget.checkRepository.switchToNomihodai(summary.id);
+      }
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('投げ放題に切り替えました')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${toEvent ? 'イベント営業' : '投げ放題'}に切り替えました')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -303,9 +309,7 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                       return ListView(
                         children: [
                           Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
                             child: CheckoutStaffBillingCard(
                               summary: summary,
                               items: items,
@@ -320,9 +324,7 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                                   : _setBilledMinutes,
                             ),
                           ),
-                          if (widget.canOperate &&
-                              !isPaid &&
-                              summary.billingMode == BusinessMode.event)
+                          if (widget.canOperate && !isPaid)
                             Padding(
                               padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                               child: OutlinedButton.icon(
@@ -330,7 +332,14 @@ class _CheckoutDetailSheetState extends State<CheckoutDetailSheet> {
                                     ? null
                                     : () => _switchToNomihodai(summary),
                                 icon: const Icon(Icons.swap_horiz),
-                                label: Text(_switching ? '切替中...' : '投げ放題に切替'),
+                                label: Text(
+                                  _switching
+                                      ? '切替中...'
+                                      : summary.billingMode ==
+                                            BusinessMode.normal
+                                      ? 'イベント営業に切替'
+                                      : '投げ放題に切替',
+                                ),
                               ),
                             ),
                           if (!isPaid) ...[
